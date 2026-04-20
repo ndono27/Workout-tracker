@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workout Wizard</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="header">
+      <h1>Train Smarter, Track Your Progress</h1>
+      <div class="account-menu hidden" id="account-menu">
+        <button id="account-menu-button" class="account-icon-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">
+          <span aria-hidden="true">👤</span>
+        </button>
+        <div id="account-dropdown" class="account-dropdown hidden">
+          <button id="account-reset-pbs-button" type="button" class="account-dropdown-item">Reset personal bests</button>
+          <button id="account-logout-button" type="button" class="account-dropdown-item">Log out</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="auth-panel" id="auth-panel">
+      <h2>Account</h2>
+      <p class="muted" id="auth-status-text">Create an account or log in to save your workouts and progress.</p>
+      <div class="auth-grid">
+        <input id="auth-username" type="text" placeholder="Username" autocomplete="username" />
+        <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password" />
+      </div>
+      <div class="auth-actions">
+        <button id="create-account-button" type="button" class="secondary-btn">Create account</button>
+        <button id="login-button" type="button" class="primary-btn">Log in</button>
+      </div>
+    </section>
+
+    <main id="app-content" class="hidden">
+      <section class="tabs">
+        <button class="tab-button active" data-tab="calendar">Calendar</button>
+        <button class="tab-button" data-tab="workouts">Workouts</button>
+        <button class="tab-button" data-tab="active-workout" id="active-workout-tab">Active workout</button>
+        <button class="tab-button" data-tab="completed-workouts">Completed workouts</button>
+        <button class="tab-button" data-tab="personal-bests">Personal Best</button>
+      </section>
+
+      <section class="tab-panel active" id="calendar">
+        <div class="calendar-layout">
+          <div class="calendar-section">
+            <div class="calendar-header">
+              <h3 id="month-label"></h3>
+              <div class="month-controls">
+                <button id="prev-month">‹</button>
+                <button id="next-month">›</button>
+              </div>
+            </div>
+            <div class="calendar-grid" id="calendar-grid"></div>
+          </div>
+
+          <div class="day-section">
+            <h3 id="selected-date-text">Select a day</h3>
+
+            <div class="daily-add">
+              <label>Start a saved workout</label>
+              <div class="daily-add-row">
+                <select id="day-workout-select">
+                  <option value="">Choose a workout</option>
+                </select>
+                <button id="assign-day-workout-button" class="secondary-btn">Start</button>
+              </div>
+            </div>
+
+            <div id="day-workouts" class="day-workouts"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="workouts">
+        <div class="workout-layout">
+          <div class="workout-builder">
+            <h3>New workout</h3>
+            <label>Name</label>
+            <input id="workout-name" placeholder="Leg day" />
+
+            <div class="workout-actions">
+              <label>Exercises</label>
+              <div class="workout-actions-buttons">
+                <button id="add-exercise-button" class="secondary-btn" type="button">Add exercise</button>
+                <button id="add-superset-button" class="secondary-btn" type="button">Add superset</button>
+              </div>
+            </div>
+
+            <div id="exercise-list" class="exercise-list"></div>
+
+            <button id="save-workout-button" class="primary-btn">Save</button>
+          </div>
+
+          <div class="saved-workouts-panel">
+            <h3>Your workouts</h3>
+            <div class="saved-workouts" id="saved-workouts"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="active-workout">
+        <div class="active-workout-panel">
+          <div class="active-workout-header">
+            <h3 id="active-workout-title">No workout in progress</h3>
+            <p class="muted" id="active-workout-date-line"></p>
+          </div>
+          <div id="active-workout-root" class="active-workout-body"></div>
+          <div class="active-workout-footer hidden" id="active-workout-actions">
+            <div class="active-workout-footer-row">
+              <button type="button" id="discard-active-workout" class="secondary-btn">Discard</button>
+            </div>
+            <div class="complete-workout-box">
+              <button type="button" id="finish-active-workout" class="complete-workout-btn">Complete workout</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="completed-workouts">
+        <div class="completed-workouts-panel">
+          <h3>Completed workouts</h3>
+          <p class="muted completed-workouts-hint">Grouped by workout name. Click a name to expand and see every time you logged it.</p>
+          <div id="completed-workouts-root" class="completed-workouts-root"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="personal-bests">
+        <div class="completed-workouts-panel">
+          <h3>Personal Bests</h3>
+          <p class="muted completed-workouts-hint">Grouped by workout. Each exercise shows your best reps and best weight.</p>
+          <div id="personal-bests-root" class="completed-workouts-root"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal hidden" id="workout-complete-modal">
+    <div class="modal-panel complete-summary-panel">
+      <h2>Workout complete!</h2>
+      <p class="complete-duration" id="workout-duration-text"></p>
+      <div class="complete-pb-list hidden" id="workout-pb-list" aria-live="polite"></div>
+      <button type="button" class="primary-btn" id="close-workout-complete">Continue</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

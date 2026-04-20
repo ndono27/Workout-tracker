@@ -1,0 +1,435 @@
+:root {
+  --body: #f8fafc;
+  --panel: #ffffff;
+  --panel-soft: #eef2ff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #6366f1;
+  --accent-soft: #c7d2fe;
+  --border: #e2e8f0;
+  --shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #fafbfc;
+  color: var(--text);
+}
+
+body {
+  padding: 16px;
+}
+
+button, input, textarea, select {
+  font: inherit;
+}
+
+.app-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.header {
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #eef2ff, #f8fafc);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.header-stats {
+  display: flex;
+  gap: 24px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.header-stats strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+main {
+  display: grid;
+  gap: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.tab-button {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tab-button.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.calendar-layout,
+.workout-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.calendar-layout {
+  grid-template-columns: 1fr 1fr;
+}
+
+.workout-layout {
+  grid-template-columns: 1fr 1fr;
+}
+
+.calendar-section,
+.day-section,
+.workout-builder,
+.saved-workouts-panel {
+  background: var(--panel);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.calendar-header h3,
+.day-section h3,
+.workout-builder h3,
+.saved-workouts-panel h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.month-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.month-controls button,
+.primary-btn,
+.secondary-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.primary-btn {
+  background: var(--accent);
+  color: white;
+}
+
+.primary-btn:hover {
+  background: #4f46e5;
+}
+
+.secondary-btn {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid var(--border);
+}
+
+.secondary-btn:hover {
+  background: var(--panel-soft);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.day-cell {
+  min-height: 60px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--panel-soft);
+  border: 1px solid #dbeafe;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  font-size: 0.85rem;
+}
+
+.day-cell:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+}
+
+.day-cell.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.day-cell span {
+  font-weight: 700;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.day-cell .marker {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.day-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.daily-add {
+  display: grid;
+  gap: 6px;
+}
+
+.daily-add label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.daily-add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+select,
+input,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+
+.day-workouts {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+}
+
+.workout-builder {
+  display: grid;
+  gap: 10px;
+}
+
+.workout-builder label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.workout-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.exercise-list {
+  display: grid;
+  gap: 10px;
+}
+
+.exercise-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.remove-exercise {
+  justify-self: end;
+  border: none;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.workout-details {
+  white-space: pre-line;
+  color: #334155;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.saved-workouts {
+  display: grid;
+  gap: 10px;
+}
+
+.workout-card {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+}
+
+.workout-card h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.workout-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.workout-card button {
+  margin-top: 8px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.22);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-panel {
+  width: min(480px, 90%);
+  padding: 20px;
+  position: relative;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+.modal-panel h2 {
+  margin: 0 0 12px;
+}
+
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.modal-content {
+  display: grid;
+  gap: 10px;
+}
+
+.modal-content label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .calendar-layout,
+  .workout-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    padding: 12px;
+  }
+
+  .header {
+    padding: 12px;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .header h1 {
+    font-size: 1.2rem;
+  }
+
+  .header-stats {
+    gap: 16px;
+    font-size: 0.8rem;
+  }
+
+  .calendar-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+}
