@@ -3,148 +3,75 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Workout Wizard</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Workout Tracker Showcase</title>
+  <style>
+    :root { --bg:#f5f8ff; --panel:#fff; --text:#13223d; --muted:#5e6f94; --accent:#4f6fff; --accent2:#1ec8a6; --border:#d8e4ff; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; font-family:Inter,Segoe UI,sans-serif; color:var(--text); background:
+      radial-gradient(900px 450px at 0% 0%, #dce8ff, transparent 55%),
+      radial-gradient(900px 450px at 100% 0%, #dbfff5, transparent 55%), var(--bg); }
+    .wrap { max-width:1080px; margin:0 auto; padding:24px; }
+    .hero,.card { background:var(--panel); border:1px solid var(--border); border-radius:18px; box-shadow:0 14px 32px rgba(70,96,170,.12); }
+    .hero { padding:30px; display:grid; gap:14px; }
+    h1 { margin:0; font-size:clamp(2rem,4vw,3rem); }
+    h2 { margin:0 0 8px; font-size:1.25rem; }
+    p { margin:0; color:var(--muted); }
+    .badge { display:inline-block; background:#eaf0ff; border:1px solid var(--border); color:#274187; border-radius:999px; padding:6px 10px; font-size:.78rem; font-weight:700; }
+    .stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .stat { background:#f0f5ff; border:1px solid var(--border); border-radius:12px; padding:10px; text-align:center; }
+    .stat strong { display:block; font-size:1.1rem; color:var(--text); }
+    .nav { position:sticky; top:0; backdrop-filter:blur(8px); background:rgba(245,248,255,.85); border-bottom:1px solid #d9e4ff; z-index:9; }
+    .navin { max-width:1080px; margin:0 auto; padding:10px 24px; display:flex; gap:8px; flex-wrap:wrap; }
+    .nav a { text-decoration:none; color:#1b356f; background:#fff; border:1px solid var(--border); border-radius:999px; padding:6px 10px; font-size:.86rem; }
+    .grid { margin-top:14px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .card { padding:20px; }
+    ul,ol { margin:8px 0 0; padding-left:18px; color:var(--muted); }
+    .cta { margin-top:10px; display:inline-block; background:linear-gradient(135deg,var(--accent),#8da5ff); color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; font-weight:700; }
+    footer { text-align:center; color:var(--muted); padding:22px 0 8px; }
+    @media (max-width:800px){ .grid,.stats{grid-template-columns:1fr;} }
+  </style>
 </head>
 <body>
-  <div class="app-shell">
-    <header class="header">
-      <h1>Train Smarter, Track Your Progress</h1>
-      <div class="account-menu hidden" id="account-menu">
-        <button id="account-menu-button" class="account-icon-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Account menu">
-          <span aria-hidden="true">👤</span>
-        </button>
-        <div id="account-dropdown" class="account-dropdown hidden">
-          <button id="account-logout-button" type="button" class="account-dropdown-item">Log out</button>
-        </div>
+  <div class="nav"><div class="navin">
+    <a href="#overview">Overview</a><a href="#features">Features</a><a href="#flow">Workflow</a><a href="#tech">Tech</a><a href="#future">Future</a>
+  </div></div>
+  <main class="wrap">
+    <section class="hero" id="overview">
+      <span class="badge">Workout Tracker - Project Showcase</span>
+      <h1>Train Smarter, Track Progress, Stay Consistent</h1>
+      <p>A scrollable, single-page highlight of your Workout Tracker app. It covers account handling, workout planning, active session logging, completed history, and personal best progression.</p>
+      <div class="stats">
+        <div class="stat"><strong>5</strong>Main tabs</div>
+        <div class="stat"><strong>Local</strong>User data persistence</div>
+        <div class="stat"><strong>Fast</strong>Vanilla JS app</div>
       </div>
-    </header>
-
-    <section class="auth-panel" id="auth-panel">
-      <h2>Account</h2>
-      <p class="muted" id="auth-status-text">Create an account or log in to save your workouts and progress.</p>
-      <div class="auth-grid">
-        <input id="auth-username" type="text" placeholder="Username" autocomplete="username" />
-        <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password" />
-      </div>
-      <div class="auth-actions">
-        <button id="create-account-button" type="button" class="secondary-btn">Create account</button>
-        <button id="login-button" type="button" class="primary-btn">Log in</button>
-      </div>
+      <a class="cta" href="https://github.com/ndono27/Workout-tracker" target="_blank" rel="noopener noreferrer">View Source on GitHub</a>
     </section>
 
-    <main id="app-content" class="hidden">
-      <section class="tabs">
-        <button class="tab-button active" data-tab="calendar">Calendar</button>
-        <button class="tab-button" data-tab="workouts">Workouts</button>
-        <button class="tab-button" data-tab="active-workout" id="active-workout-tab">Active workout</button>
-        <button class="tab-button" data-tab="completed-workouts">Completed workouts</button>
-        <button class="tab-button" data-tab="personal-bests">Personal Best</button>
-      </section>
+    <section class="grid" id="features">
+      <article class="card"><h2>Key Features</h2><ul>
+        <li>Account create/login with per-user data.</li><li>Workout templates with exercise sets and supersets.</li><li>Calendar-based planning and day selection.</li><li>Active workout logging for reps and weight.</li><li>Completed workout archive by workout name.</li><li>Personal best tracking and updates.</li>
+      </ul></article>
+      <article class="card" id="flow"><h2>User Workflow</h2><ol>
+        <li>Create account or log in.</li><li>Build workout templates.</li><li>Select a day and start a saved workout.</li><li>Log each set in active workout view.</li><li>Complete and save session results.</li><li>Review history and personal bests.</li>
+      </ol></article>
+    </section>
 
-      <section class="tab-panel active" id="calendar">
-        <div class="calendar-layout">
-          <div class="calendar-section">
-            <div class="calendar-header">
-              <h3 id="month-label"></h3>
-              <div class="month-controls">
-                <button id="prev-month">‹</button>
-                <button id="next-month">›</button>
-              </div>
-            </div>
-            <div class="calendar-grid" id="calendar-grid"></div>
-          </div>
+    <section class="grid" id="tech">
+      <article class="card"><h2>Architecture</h2><ul>
+        <li>State-driven rendering in JavaScript.</li><li>DOM updates by focused render functions.</li><li>Data normalization and validation helpers.</li><li>Date-keyed calendar entries and session records.</li>
+      </ul></article>
+      <article class="card"><h2>Tech Stack</h2><ul>
+        <li>HTML5 + CSS3 for structure and styling.</li><li>Vanilla JavaScript for app logic.</li><li>LocalStorage for persistence.</li><li>No backend required for MVP usage.</li>
+      </ul></article>
+    </section>
 
-          <div class="day-section">
-            <h3 id="selected-date-text">Select a day</h3>
+    <section class="card" id="future" style="margin-top:14px;"><h2>Future Enhancements</h2><ul>
+      <li>Cloud sync for cross-device access.</li><li>Secure authentication and hashed credentials.</li><li>Analytics charts for volume and progression.</li><li>Export/import for data backup and sharing.</li><li>PWA install and offline optimization.</li>
+    </ul></section>
 
-            <div class="daily-add">
-              <label>Start a saved workout</label>
-              <div class="daily-add-row">
-                <select id="day-workout-select">
-                  <option value="">Choose a workout</option>
-                </select>
-                <button id="assign-day-workout-button" class="secondary-btn">Start</button>
-              </div>
-            </div>
-
-            <div id="day-workouts" class="day-workouts"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="tab-panel" id="workouts">
-        <div class="workout-layout">
-          <div class="workout-builder">
-            <h3>New workout</h3>
-            <label>Name</label>
-            <input id="workout-name" placeholder="Leg day" />
-
-            <div class="workout-actions">
-              <label>Exercises</label>
-              <div class="workout-actions-buttons">
-                <button id="add-exercise-button" class="secondary-btn" type="button">Add exercise</button>
-                <button id="add-superset-button" class="secondary-btn" type="button">Add superset</button>
-              </div>
-            </div>
-
-            <div id="exercise-list" class="exercise-list"></div>
-
-            <button id="save-workout-button" class="primary-btn">Save</button>
-          </div>
-
-          <div class="saved-workouts-panel">
-            <h3>Your workouts</h3>
-            <div class="saved-workouts" id="saved-workouts"></div>
-          </div>
-        </div>
-      </section>
-
-      <section class="tab-panel" id="active-workout">
-        <div class="active-workout-panel">
-          <div class="active-workout-header">
-            <h3 id="active-workout-title">No workout in progress</h3>
-            <p class="muted" id="active-workout-date-line"></p>
-          </div>
-          <div id="active-workout-root" class="active-workout-body"></div>
-          <div class="active-workout-footer hidden" id="active-workout-actions">
-            <div class="active-workout-footer-row">
-              <button type="button" id="discard-active-workout" class="secondary-btn">Discard</button>
-            </div>
-            <div class="complete-workout-box">
-              <button type="button" id="finish-active-workout" class="complete-workout-btn">Complete workout</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="tab-panel" id="completed-workouts">
-        <div class="completed-workouts-panel">
-          <h3>Completed workouts</h3>
-          <p class="muted completed-workouts-hint">Grouped by workout name. Click a name to expand and see every time you logged it.</p>
-          <div id="completed-workouts-root" class="completed-workouts-root"></div>
-        </div>
-      </section>
-
-      <section class="tab-panel" id="personal-bests">
-        <div class="completed-workouts-panel">
-          <h3>Personal Bests</h3>
-          <p class="muted completed-workouts-hint">Grouped by workout. Each exercise shows your best reps and best weight.</p>
-          <div id="personal-bests-root" class="completed-workouts-root"></div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <div class="modal hidden" id="workout-complete-modal">
-    <div class="modal-panel complete-summary-panel">
-      <h2>Workout complete!</h2>
-      <p class="complete-duration" id="workout-duration-text"></p>
-      <div class="complete-pb-list hidden" id="workout-pb-list" aria-live="polite"></div>
-      <button type="button" class="primary-btn" id="close-workout-complete">Continue</button>
-    </div>
-  </div>
-
-  <script src="script.js"></script>
+    <footer>Standalone GitHub Pages site. Original app remains on the main branch.</footer>
+  </main>
 </body>
 </html>
