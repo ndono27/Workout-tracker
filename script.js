@@ -84,7 +84,6 @@ const loginButton = document.getElementById('login-button');
 const accountMenu = document.getElementById('account-menu');
 const accountMenuButton = document.getElementById('account-menu-button');
 const accountDropdown = document.getElementById('account-dropdown');
-const accountResetPbsButton = document.getElementById('account-reset-pbs-button');
 const accountLogoutButton = document.getElementById('account-logout-button');
 
 function saveState() {
@@ -1364,18 +1363,6 @@ function logout() {
   syncAuthUi();
 }
 
-function resetPersonalBests() {
-  if (!requireAuth()) return;
-  const ok = confirm('Reset all personal bests for this account?');
-  if (!ok) return;
-  state.personalBests = {};
-  saveState();
-  renderPersonalBestsTab();
-  accountDropdown?.classList.add('hidden');
-  accountMenuButton?.setAttribute('aria-expanded', 'false');
-  alert('Personal bests reset.');
-}
-
 function renderAllForActiveUser() {
   renderCalendar();
   renderSavedWorkouts();
@@ -1419,9 +1406,6 @@ loginButton?.addEventListener('click', login);
 accountMenuButton?.addEventListener('click', (event) => {
   event.stopPropagation();
   toggleAccountDropdown();
-});
-accountResetPbsButton?.addEventListener('click', () => {
-  resetPersonalBests();
 });
 accountLogoutButton?.addEventListener('click', () => {
   logout();
