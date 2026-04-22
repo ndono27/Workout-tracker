@@ -17,7 +17,8 @@
       --sage: #3d5245;
       --sage-soft: #e4ebe5;
       --line: rgba(30, 26, 22, 0.12);
-      --max: 42rem;
+      --max: 44rem;
+      --toc-bg: #fffdf8;
     }
 
     * { box-sizing: border-box; }
@@ -27,23 +28,24 @@
     body {
       margin: 0;
       font-family: "DM Sans", system-ui, sans-serif;
-      font-size: 1.05rem;
+      font-size: 1.02rem;
       color: var(--ink);
       background-color: var(--paper);
       background-image:
         radial-gradient(ellipse 120% 80% at 50% -20%, #fff8f0 0%, transparent 50%),
         url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath fill='%23d4cfc4' fill-opacity='0.35' d='M0 0h40v40H0zm40 40h40v40H40z'/%3E%3C/svg%3E");
-      line-height: 1.65;
+      line-height: 1.62;
     }
 
     .page {
       max-width: var(--max);
       margin: 0 auto;
-      padding: clamp(1.5rem, 5vw, 3rem) clamp(1.25rem, 4vw, 2rem) 4rem;
+      padding: clamp(1.25rem, 4vw, 2.5rem) clamp(1.1rem, 3.5vw, 1.75rem) 3.5rem;
     }
 
     header {
-      padding-bottom: 2.5rem;
+      padding-bottom: 1.75rem;
+      margin-bottom: 1.25rem;
       border-bottom: 1px solid var(--line);
     }
 
@@ -52,104 +54,183 @@
       font-size: 0.95rem;
       font-style: italic;
       color: var(--accent);
-      margin: 0 0 0.5rem;
+      margin: 0 0 0.4rem;
     }
 
     h1 {
       font-family: Fraunces, Georgia, serif;
       font-weight: 600;
-      font-size: clamp(2.1rem, 6vw, 2.85rem);
-      line-height: 1.12;
+      font-size: clamp(2rem, 5.5vw, 2.75rem);
+      line-height: 1.1;
       letter-spacing: -0.02em;
-      margin: 0 0 1rem;
-      color: var(--ink);
+      margin: 0 0 0.75rem;
     }
 
     .lead {
       margin: 0;
       color: var(--muted);
-      font-size: 1.08rem;
+      font-size: 1.05rem;
+      max-width: 38rem;
     }
 
-    section {
-      padding: 2.25rem 0;
+    nav.toc {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      margin: 0 -0.25rem 2rem;
+      padding: 0.85rem 0.75rem;
+      background: rgba(253, 251, 246, 0.92);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(30, 26, 22, 0.06);
+    }
+
+    nav.toc p {
+      margin: 0 0 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    nav.toc ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.5rem;
+    }
+
+    nav.toc a {
+      display: inline-block;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.84rem;
+      color: var(--ink);
+      text-decoration: none;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: var(--toc-bg);
+    }
+
+    nav.toc a:hover {
+      border-color: var(--line);
+      background: #fff;
+    }
+
+    .block {
+      scroll-margin-top: 5.5rem;
+      padding: 1.85rem 0;
       border-bottom: 1px solid var(--line);
     }
 
-    section:last-of-type {
+    .block:last-of-type {
       border-bottom: none;
-      padding-bottom: 0;
+    }
+
+    .block-head {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .num {
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--accent);
+      line-height: 1;
     }
 
     h2 {
       font-family: Fraunces, Georgia, serif;
       font-weight: 600;
-      font-size: 1.45rem;
-      margin: 0 0 0.85rem;
-      color: var(--ink);
+      font-size: 1.35rem;
+      margin: 0;
+      flex: 1;
+      min-width: 12rem;
     }
 
+    h3 {
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--sage);
+      margin: 1.25rem 0 0.5rem;
+    }
+
+    h3:first-of-type { margin-top: 0; }
+
     p {
-      margin: 0 0 1rem;
+      margin: 0 0 0.85rem;
       color: var(--muted);
     }
 
     p:last-child { margin-bottom: 0; }
 
-    ul {
-      margin: 0.75rem 0 0;
+    ul.detail {
+      margin: 0.5rem 0 0;
       padding: 0;
       list-style: none;
     }
 
-    li {
+    ul.detail li {
       position: relative;
-      padding-left: 1.35rem;
-      margin-bottom: 0.65rem;
+      padding-left: 1.2rem;
+      margin-bottom: 0.55rem;
       color: var(--muted);
     }
 
-    li::before {
+    ul.detail li::before {
       content: "";
       position: absolute;
       left: 0;
       top: 0.55em;
-      width: 0.35rem;
-      height: 0.35rem;
+      width: 0.28rem;
+      height: 0.28rem;
       border-radius: 50%;
       background: var(--accent);
-      opacity: 0.85;
+      opacity: 0.8;
     }
 
-    .pull {
-      margin: 1.75rem 0 0;
-      padding: 1.1rem 1.25rem;
+    .note {
+      margin-top: 1rem;
+      padding: 0.9rem 1rem;
       background: var(--accent-soft);
       border-left: 3px solid var(--accent);
-      font-family: Fraunces, Georgia, serif;
-      font-size: 1.15rem;
-      font-style: italic;
-      color: var(--ink);
-      line-height: 1.45;
+      font-size: 0.98rem;
+      color: #3d3830;
     }
 
-    .band {
-      margin: 2rem calc(-1 * clamp(1.25rem, 4vw, 2rem));
-      padding: 1.75rem clamp(1.25rem, 4vw, 2rem);
+    .band-wrap {
+      margin: 0 calc(-1 * clamp(1.1rem, 3.5vw, 1.75rem));
+      padding: 0 clamp(1.1rem, 3.5vw, 1.75rem);
       background: var(--sage-soft);
       border-top: 1px solid var(--line);
       border-bottom: 1px solid var(--line);
     }
 
-    .band h2 { color: var(--sage); }
+    .band-wrap .block {
+      border-bottom: none;
+    }
 
-    .band p, .band li { color: #3d3830; }
+    .band-wrap h2 { color: var(--sage); }
 
-    .band li::before { background: var(--sage); }
+    .band-wrap h3 { color: #2d3d30; }
+
+    .band-wrap p,
+    .band-wrap li { color: #3d3830; }
+
+    .band-wrap ul.detail li::before { background: var(--sage); }
 
     footer {
-      margin-top: 2.5rem;
-      padding-top: 1.5rem;
+      margin-top: 2rem;
+      padding-top: 1.25rem;
       border-top: 1px solid var(--line);
       font-size: 0.88rem;
       color: var(--muted);
@@ -161,8 +242,11 @@
       border-bottom: 1px solid rgba(184, 74, 43, 0.35);
     }
 
-    footer a:hover {
-      border-bottom-color: var(--accent);
+    footer a:hover { border-bottom-color: var(--accent); }
+
+    @media (max-width: 520px) {
+      nav.toc ul { flex-direction: column; }
+      nav.toc a { width: 100%; text-align: center; }
     }
   </style>
 </head>
@@ -172,74 +256,147 @@
       <p class="kicker">Plan it. Log it. See it stick.</p>
       <h1>Workout Tracker</h1>
       <p class="lead">
-        A simple place to keep your training organized: save the routines you repeat, drop them on the calendar when you plan to train,
-        then walk through each set while you’re actually in the gym.
+        Everything below matches how the app is laid out: top-level tabs across the top, then the pieces inside each tab.
+        Use the jumps to hop around, or read straight through.
       </p>
     </header>
 
-    <section id="account">
-      <h2>Your space</h2>
-      <p>
-        When you sign in, everything you build belongs to you—saved workouts, days you trained, and the numbers you hit along the way.
-        Come back anytime and pick up where you left off.
-      </p>
-    </section>
+    <nav class="toc" aria-label="On this page">
+      <p>Jump to</p>
+      <ul>
+        <li><a href="#account">Account</a></li>
+        <li><a href="#workouts">Workouts</a></li>
+        <li><a href="#calendar">Calendar</a></li>
+        <li><a href="#active">Active workout</a></li>
+        <li><a href="#complete">After you finish</a></li>
+        <li><a href="#completed-tab">Completed tab</a></li>
+        <li><a href="#pbs-tab">Personal bests</a></li>
+      </ul>
+    </nav>
 
-    <section id="builder">
-      <h2>Routines you’ll reuse</h2>
+    <article class="block" id="account">
+      <div class="block-head">
+        <span class="num" aria-hidden="true">01</span>
+        <h2>Account</h2>
+      </div>
+      <h3>What it’s for</h3>
       <p>
-        Name a workout, add exercises, and say how many sets you’re aiming for. Pair moves into supersets when you want to run them back-to-back.
-        Once it feels right, save it so you’re not retyping the same plan every week.
+        Training data stays tied to whoever is signed in. Until you create an account or log in, the main app stays hidden—you only see the account panel.
       </p>
-    </section>
+      <h3>What you actually do</h3>
+      <ul class="detail">
+        <li><strong>Create account</strong> picks a username and password (minimum length on password). If that username is already taken, you’ll need a different one—or use the correct password for the existing account to get in.</li>
+        <li><strong>Log in</strong> loads your saved workouts, calendar entries, completed-day markers, and personal bests.</li>
+        <li>After you’re in, a small <strong>person icon</strong> appears in the header: open it to <strong>log out</strong> when you’re done.</li>
+      </ul>
+    </article>
 
-    <section id="calendar">
-      <h2>The calendar</h2>
-      <p>
-        Flip through months, tap a day, and see what’s on deck—or what you already finished. Start a saved routine right from that day
-        so what you log lines up with the date you actually trained.
-      </p>
-      <p class="pull">Green days are a quiet nod to “you showed up.”</p>
-    </section>
+    <article class="block" id="workouts">
+      <div class="block-head">
+        <span class="num" aria-hidden="true">02</span>
+        <h2>Workouts tab</h2>
+      </div>
+      <h3>Left side: build a new routine</h3>
+      <ul class="detail">
+        <li>Give the workout a <strong>name</strong> (for example “Pull day”).</li>
+        <li><strong>Add exercise</strong> rows: each needs a name and how many <strong>sets</strong> you plan to do. Remove a row if you change your mind.</li>
+        <li><strong>Add superset</strong> groups two or more exercises together; you can add more moves inside the block or remove the whole superset.</li>
+        <li><strong>Save</strong> stores the template in your list. Empty or half-filled rows are skipped so you don’t save junk.</li>
+      </ul>
+      <h3>Right side: your saved list</h3>
+      <ul class="detail">
+        <li>Each card shows the workout name and a readable breakdown of exercises (and supersets).</li>
+        <li><strong>Start on selected day</strong> kicks off that workout—but only if you’ve already picked a date on the <strong>Calendar</strong> tab first.</li>
+        <li><strong>Delete</strong> removes the template and cleans up calendar entries that came from that exact template, so your history doesn’t lie about what you ran.</li>
+      </ul>
+    </article>
 
-    <section id="active">
-      <h2>While you train</h2>
-      <p>
-        The active workout screen is built for thumbs and focus: each set gets a spot for reps, and weight if you use it.
-        Finish when you’re done—no extra steps buried in menus.
-      </p>
-    </section>
+    <article class="block" id="calendar">
+      <div class="block-head">
+        <span class="num" aria-hidden="true">03</span>
+        <h2>Calendar tab</h2>
+      </div>
+      <h3>Month strip</h3>
+      <ul class="detail">
+        <li>Use <strong>previous / next month</strong> to move around; the month title updates at the top.</li>
+        <li>Tap any <strong>day</strong> to select it. The selected day is highlighted.</li>
+        <li>Days where you’ve <strong>completed</strong> a workout pick up a different look so you can scan the month at a glance.</li>
+      </ul>
+      <h3>Selected day panel</h3>
+      <ul class="detail">
+        <li>The heading shows the human-readable date (weekday, month, day).</li>
+        <li><strong>Choose a workout</strong> from the dropdown, then <strong>Start</strong> opens the same flow as “Start on selected day” from the Workouts tab.</li>
+        <li>Below that, <strong>cards</strong> list every session logged that day. Each card can be <strong>removed</strong> if you need to undo a mistaken entry (personal bests recalculate afterward).</li>
+      </ul>
+      <p class="note">You need a day selected before starting a workout from the calendar—otherwise the app nudges you to pick one first.</p>
+    </article>
 
-    <div class="band">
-      <section id="finish">
-        <h2>When you tap complete</h2>
-        <p>You get a moment that feels earned: how long the session took, and any lifts that edged past what you’d done before.</p>
-        <ul>
-          <li>Confetti when you’re in the mood to celebrate.</li>
-          <li>A clear recap before you move on.</li>
+    <article class="block" id="active">
+      <div class="block-head">
+        <span class="num" aria-hidden="true">04</span>
+        <h2>Active workout tab</h2>
+      </div>
+      <h3>What shows up</h3>
+      <ul class="detail">
+        <li>The <strong>title</strong> is the workout you started, with the <strong>date</strong> you tied it to.</li>
+        <li>Exercises appear in order; supersets are grouped in a bordered block so you know those sets belong together.</li>
+        <li>Every planned set has a row: <strong>reps</strong> (required before you can finish) and <strong>weight</strong> if you want it.</li>
+      </ul>
+      <h3>Actions</h3>
+      <ul class="detail">
+        <li><strong>Discard</strong> drops the in-progress session without saving—use it if you opened the wrong day or wrong template.</li>
+        <li><strong>Complete workout</strong> checks that reps are filled in, saves the session to that calendar day, marks the day complete, then takes you back toward the calendar flow.</li>
+      </ul>
+    </article>
+
+    <div class="band-wrap">
+      <article class="block" id="complete">
+        <div class="block-head">
+          <span class="num" aria-hidden="true">05</span>
+          <h2>Right after you complete</h2>
+        </div>
+        <h3>On screen</h3>
+        <ul class="detail">
+          <li>A <strong>modal</strong> shows how long the session ran, end to end.</li>
+          <li>If you beat earlier numbers, a short list calls out <strong>new personal bests</strong> by exercise; otherwise that part stays tucked away.</li>
+          <li><strong>Continue</strong> closes the modal; there’s a bit of confetti when you finish—small reward for closing the loop.</li>
         </ul>
-      </section>
+      </article>
     </div>
 
-    <section id="history">
-      <h2>What you’ve already done</h2>
+    <article class="block" id="completed-tab">
+      <div class="block-head">
+        <span class="num" aria-hidden="true">06</span>
+        <h2>Completed workouts tab</h2>
+      </div>
       <p>
-        Past sessions stack under the workout name you used. Open one to see the sets you logged that day—handy when you’re asking
-        “what did I squat last Tuesday?” without digging through notes.
+        This is your archive: not “what you planned,” but <strong>what you actually logged</strong>, grouped by the workout name you used when you saved the session.
       </p>
-    </section>
+      <ul class="detail">
+        <li>Each workout name is a <strong>collapsible row</strong> with a count of how many times you’ve finished it.</li>
+        <li>Open one to see <strong>each date</strong> underneath, with the full set-by-set text for that day—reps and weights as you entered them.</li>
+        <li>Newest dates tend to float toward the top within each group so recent work is easy to find.</li>
+      </ul>
+    </article>
 
-    <section id="pbs">
-      <h2>Personal bests</h2>
+    <article class="block" id="pbs-tab">
+      <div class="block-head">
+        <span class="num" aria-hidden="true">07</span>
+        <h2>Personal bests tab</h2>
+      </div>
       <p>
-        Best reps and best weight get tracked per exercise inside each workout, so you can see where you’re creeping upward over time.
-        It’s there for bragging rights, sure—but mostly so your next session has a target.
+        Here the app rolls your history into “best so far” numbers, still organized by <strong>workout name</strong> so leg day stats don’t bleed into push day.
       </p>
-    </section>
+      <ul class="detail">
+        <li>For each exercise it tracks things like <strong>best reps</strong>, <strong>best weight</strong>, and which set carried the heaviest load.</li>
+        <li>Exercises that exist in your templates show up even before you’ve logged a PR, so you can see what’s still blank.</li>
+        <li>Where the app has stored a best, you can <strong>reset</strong> that one exercise if you want a clean slate—without touching the rest of your log.</li>
+      </ul>
+    </article>
 
     <footer>
-      Built as a browser app you can open and run locally.
-      <a href="https://github.com/ndono27/Workout-tracker" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+      Open the app from the repo’s <code>index.html</code> when you want to train.
+      <a href="https://github.com/ndono27/Workout-tracker" target="_blank" rel="noopener noreferrer">GitHub</a>
     </footer>
   </div>
 </body>
