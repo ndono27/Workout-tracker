@@ -3,19 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Workout Tracker | Project Summary</title>
+  <title>Workout Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #f3f7ff;
-      --panel: #ffffff;
-      --panel-soft: #eef3ff;
-      --text: #17223a;
-      --muted: #5a698b;
-      --accent: #4f6fff;
-      --accent-2: #22bfa0;
-      --border: #d8e3ff;
-      --shadow: 0 14px 30px rgba(61, 96, 180, 0.12);
-      --max: 1100px;
+      --paper: #faf6ef;
+      --ink: #1e1a16;
+      --muted: #5c5349;
+      --accent: #b84a2b;
+      --accent-soft: #f0e4dc;
+      --sage: #3d5245;
+      --sage-soft: #e4ebe5;
+      --line: rgba(30, 26, 22, 0.12);
+      --max: 42rem;
     }
 
     * { box-sizing: border-box; }
@@ -24,218 +26,221 @@
 
     body {
       margin: 0;
-      font-family: Inter, Segoe UI, Tahoma, sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(1200px 520px at 0% -10%, #d8e7ff, transparent 55%),
-        radial-gradient(900px 420px at 100% 0%, #d9fff4, transparent 45%),
-        var(--bg);
-      line-height: 1.6;
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 1.05rem;
+      color: var(--ink);
+      background-color: var(--paper);
+      background-image:
+        radial-gradient(ellipse 120% 80% at 50% -20%, #fff8f0 0%, transparent 50%),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpath fill='%23d4cfc4' fill-opacity='0.35' d='M0 0h40v40H0zm40 40h40v40H40z'/%3E%3C/svg%3E");
+      line-height: 1.65;
     }
 
-    .wrap {
+    .page {
       max-width: var(--max);
       margin: 0 auto;
-      padding: 28px 20px 34px;
+      padding: clamp(1.5rem, 5vw, 3rem) clamp(1.25rem, 4vw, 2rem) 4rem;
     }
 
-    .hero {
-      background: linear-gradient(135deg, #ffffff, #f7faff);
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      padding: 30px;
-      display: grid;
-      gap: 18px;
+    header {
+      padding-bottom: 2.5rem;
+      border-bottom: 1px solid var(--line);
     }
 
-    .eyebrow {
-      margin: 0;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      font-size: 0.78rem;
-      color: var(--accent-2);
-      font-weight: 700;
+    .kicker {
+      font-family: Fraunces, Georgia, serif;
+      font-size: 0.95rem;
+      font-style: italic;
+      color: var(--accent);
+      margin: 0 0 0.5rem;
     }
 
     h1 {
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 600;
+      font-size: clamp(2.1rem, 6vw, 2.85rem);
+      line-height: 1.12;
+      letter-spacing: -0.02em;
+      margin: 0 0 1rem;
+      color: var(--ink);
+    }
+
+    .lead {
       margin: 0;
-      font-size: clamp(1.9rem, 3vw, 2.8rem);
-      line-height: 1.15;
+      color: var(--muted);
+      font-size: 1.08rem;
     }
 
-    p { margin: 0; color: var(--muted); }
-
-    .meta {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
+    section {
+      padding: 2.25rem 0;
+      border-bottom: 1px solid var(--line);
     }
 
-    .meta-card {
-      background: var(--panel-soft);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
-      text-align: center;
-    }
-
-    .meta-card strong {
-      display: block;
-      color: var(--text);
-      font-size: 1.1rem;
-    }
-
-    .grid {
-      margin-top: 16px;
-      display: grid;
-      gap: 14px;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
-      padding: 20px;
+    section:last-of-type {
+      border-bottom: none;
+      padding-bottom: 0;
     }
 
     h2 {
-      margin: 0 0 8px;
-      font-size: 1.2rem;
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 600;
+      font-size: 1.45rem;
+      margin: 0 0 0.85rem;
+      color: var(--ink);
     }
 
-    ul, ol {
-      margin: 10px 0 0;
-      padding-left: 20px;
+    p {
+      margin: 0 0 1rem;
       color: var(--muted);
     }
 
-    .single {
-      margin-top: 14px;
+    p:last-child { margin-bottom: 0; }
+
+    ul {
+      margin: 0.75rem 0 0;
+      padding: 0;
+      list-style: none;
     }
 
-    .single .card {
-      padding: 22px;
-    }
-
-    .chips {
-      margin-top: 12px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .chip {
-      border: 1px solid var(--border);
-      background: var(--panel-soft);
-      border-radius: 999px;
-      padding: 6px 10px;
-      font-size: 0.78rem;
-      color: var(--text);
-    }
-
-    .footer {
-      margin-top: 16px;
-      text-align: center;
+    li {
+      position: relative;
+      padding-left: 1.35rem;
+      margin-bottom: 0.65rem;
       color: var(--muted);
-      font-size: 0.9rem;
     }
 
-    @media (max-width: 860px) {
-      .meta,
-      .grid {
-        grid-template-columns: 1fr;
-      }
+    li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 0.35rem;
+      height: 0.35rem;
+      border-radius: 50%;
+      background: var(--accent);
+      opacity: 0.85;
+    }
+
+    .pull {
+      margin: 1.75rem 0 0;
+      padding: 1.1rem 1.25rem;
+      background: var(--accent-soft);
+      border-left: 3px solid var(--accent);
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.15rem;
+      font-style: italic;
+      color: var(--ink);
+      line-height: 1.45;
+    }
+
+    .band {
+      margin: 2rem calc(-1 * clamp(1.25rem, 4vw, 2rem));
+      padding: 1.75rem clamp(1.25rem, 4vw, 2rem);
+      background: var(--sage-soft);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .band h2 { color: var(--sage); }
+
+    .band p, .band li { color: #3d3830; }
+
+    .band li::before { background: var(--sage); }
+
+    footer {
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--line);
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(184, 74, 43, 0.35);
+    }
+
+    footer a:hover {
+      border-bottom-color: var(--accent);
     }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="hero">
-      <p class="eyebrow">Standalone project summary</p>
+  <div class="page">
+    <header>
+      <p class="kicker">Plan it. Log it. See it stick.</p>
       <h1>Workout Tracker</h1>
-      <p>
-        Workout Tracker is a browser-based fitness app that helps users plan workouts, run active sessions,
-        log set-by-set results, and track personal progress over time in a clean tabbed interface.
+      <p class="lead">
+        A simple place to keep your training organized: save the routines you repeat, drop them on the calendar when you plan to train,
+        then walk through each set while you’re actually in the gym.
       </p>
-      <div class="meta">
-        <div class="meta-card"><strong>5</strong>Main app tabs</div>
-        <div class="meta-card"><strong>Local</strong>Saved data</div>
-        <div class="meta-card"><strong>Vanilla JS</strong>Core logic</div>
-      </div>
+    </header>
+
+    <section id="account">
+      <h2>Your space</h2>
+      <p>
+        When you sign in, everything you build belongs to you—saved workouts, days you trained, and the numbers you hit along the way.
+        Come back anytime and pick up where you left off.
+      </p>
     </section>
 
-    <section class="grid">
-      <article class="card">
-        <h2>Core Features</h2>
-        <ul>
-          <li>User account creation and login</li>
-          <li>Workout template builder with exercises and supersets</li>
-          <li>Calendar-based workout planning and day selection</li>
-          <li>Active workout mode with reps/weight logging</li>
-          <li>Completed workout history grouped by workout name</li>
-          <li>Personal best tracking by workout and exercise</li>
-        </ul>
-      </article>
-
-      <article class="card">
-        <h2>How It Works</h2>
-        <ol>
-          <li>Create an account or log in.</li>
-          <li>Build a saved workout template.</li>
-          <li>Select a day and start the workout.</li>
-          <li>Enter reps and optional weight for each set.</li>
-          <li>Complete session and auto-save progress.</li>
-          <li>Review completed sessions and personal bests.</li>
-        </ol>
-      </article>
+    <section id="builder">
+      <h2>Routines you’ll reuse</h2>
+      <p>
+        Name a workout, add exercises, and say how many sets you’re aiming for. Pair moves into supersets when you want to run them back-to-back.
+        Once it feels right, save it so you’re not retyping the same plan every week.
+      </p>
     </section>
 
-    <section class="grid">
-      <article class="card">
-        <h2>Technical Summary</h2>
-        <ul>
-          <li>Frontend: HTML, CSS, JavaScript</li>
-          <li>State managed in memory and rendered to DOM</li>
-          <li>Persistence via LocalStorage keys per user/session</li>
-          <li>Validation for required workout and set inputs</li>
-          <li>Utility helpers for normalization and formatting</li>
-        </ul>
-      </article>
-
-      <article class="card">
-        <h2>Strengths</h2>
-        <ul>
-          <li>Fast, no backend required to use</li>
-          <li>Simple and intuitive flow for daily tracking</li>
-          <li>Good separation between templates and logged sessions</li>
-          <li>Immediate visual feedback across tabs</li>
-          <li>Reusable structure for future analytics upgrades</li>
-        </ul>
-      </article>
+    <section id="calendar">
+      <h2>The calendar</h2>
+      <p>
+        Flip through months, tap a day, and see what’s on deck—or what you already finished. Start a saved routine right from that day
+        so what you log lines up with the date you actually trained.
+      </p>
+      <p class="pull">Green days are a quiet nod to “you showed up.”</p>
     </section>
 
-    <section class="single">
-      <article class="card">
-        <h2>Future Enhancements</h2>
-        <ul>
-          <li>Add cloud sync and secure account storage</li>
-          <li>Add charts for volume trends and progression</li>
-          <li>Add export/import options for backup</li>
-          <li>Add workout timer, rest timer, and streak metrics</li>
-          <li>Add shareable plans and coaching presets</li>
-        </ul>
-        <div class="chips">
-          <span class="chip">MVP complete</span>
-          <span class="chip">Scalable base</span>
-          <span class="chip">User-focused UX</span>
-        </div>
-      </article>
+    <section id="active">
+      <h2>While you train</h2>
+      <p>
+        The active workout screen is built for thumbs and focus: each set gets a spot for reps, and weight if you use it.
+        Finish when you’re done—no extra steps buried in menus.
+      </p>
     </section>
 
-    <p class="footer">This is a separate page and does not modify the original tracker app files.</p>
-  </main>
+    <div class="band">
+      <section id="finish">
+        <h2>When you tap complete</h2>
+        <p>You get a moment that feels earned: how long the session took, and any lifts that edged past what you’d done before.</p>
+        <ul>
+          <li>Confetti when you’re in the mood to celebrate.</li>
+          <li>A clear recap before you move on.</li>
+        </ul>
+      </section>
+    </div>
+
+    <section id="history">
+      <h2>What you’ve already done</h2>
+      <p>
+        Past sessions stack under the workout name you used. Open one to see the sets you logged that day—handy when you’re asking
+        “what did I squat last Tuesday?” without digging through notes.
+      </p>
+    </section>
+
+    <section id="pbs">
+      <h2>Personal bests</h2>
+      <p>
+        Best reps and best weight get tracked per exercise inside each workout, so you can see where you’re creeping upward over time.
+        It’s there for bragging rights, sure—but mostly so your next session has a target.
+      </p>
+    </section>
+
+    <footer>
+      Built as a browser app you can open and run locally.
+      <a href="https://github.com/ndono27/Workout-tracker" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+    </footer>
+  </div>
 </body>
 </html>
