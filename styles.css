@@ -376,6 +376,20 @@ main {
   font-size: 0.95rem;
 }
 
+.active-exercise-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.active-set-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .active-superset-wrap {
   display: grid;
   gap: 10px;
@@ -397,7 +411,7 @@ main {
 
 .active-set-row {
   display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  grid-template-columns: auto 1fr 1fr auto;
   gap: 8px;
   align-items: center;
 }
@@ -409,6 +423,10 @@ main {
   min-width: 3.2rem;
 }
 
+.take-video-btn {
+  white-space: nowrap;
+}
+
 @media (max-width: 520px) {
   .active-set-row {
     grid-template-columns: 1fr;
@@ -417,6 +435,105 @@ main {
   .active-set-label {
     margin-bottom: -4px;
   }
+}
+
+.video-preview {
+  width: 100%;
+  max-height: 300px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #000;
+  margin: 8px 0 10px;
+}
+
+.video-capture-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.record-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 3px solid #fee2e2;
+  background: #dc2626;
+  cursor: pointer;
+}
+
+.record-btn.recording {
+  background: #7f1d1d;
+  border-color: #fecaca;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.2);
+}
+
+.video-group {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.video-group h4 {
+  margin: 0 0 10px;
+}
+
+.video-list {
+  display: grid;
+  gap: 10px;
+}
+
+.video-item {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.video-item-toggle {
+  width: 100%;
+  text-align: left;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.video-item video {
+  width: 100%;
+  border-radius: 8px;
+  background: #000;
+}
+
+.video-day-group {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  background: var(--panel-soft);
+}
+
+.video-day-summary {
+  padding: 10px 12px;
+  list-style: none;
+  cursor: pointer;
+  font-weight: 700;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.video-day-summary::-webkit-details-marker {
+  display: none;
+}
+
+.video-day-count {
+  font-size: 0.78rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: var(--panel);
 }
 
 .calendar-layout,

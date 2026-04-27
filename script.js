@@ -41,6 +41,7 @@ const state = {
   calendarEntries: {},
   completedWorkoutDays: {},
   personalBests: {},
+  videoLibrary: {},
   activeSession: null,
   activeUser: null
 };
@@ -67,6 +68,13 @@ const workoutCompleteModal = document.getElementById('workout-complete-modal');
 const workoutDurationText = document.getElementById('workout-duration-text');
 const workoutPbList = document.getElementById('workout-pb-list');
 const closeWorkoutCompleteButton = document.getElementById('close-workout-complete');
+const videosRoot = document.getElementById('videos-root');
+const videoCaptureModal = document.getElementById('video-capture-modal');
+const videoPreview = document.getElementById('video-preview');
+const videoCaptureStatus = document.getElementById('video-capture-status');
+const switchCameraButton = document.getElementById('switch-camera-button');
+const recordVideoButton = document.getElementById('record-video-button');
+const closeVideoCaptureButton = document.getElementById('close-video-capture');
 const totalWorkoutsElem = document.getElementById('total-workouts');
 const plannedDaysElem = document.getElementById('planned-days');
 const nextWorkoutElem = document.getElementById('next-workout');
@@ -85,6 +93,12 @@ const accountMenu = document.getElementById('account-menu');
 const accountMenuButton = document.getElementById('account-menu-button');
 const accountDropdown = document.getElementById('account-dropdown');
 const accountLogoutButton = document.getElementById('account-logout-button');
+
+let activeVideoStream = null;
+let activeMediaRecorder = null;
+let activeVideoChunks = [];
+let activeVideoContext = null;
+let videoFacingMode = 'environment';
 
 function saveState() {
   if (!state.activeUser) {
@@ -136,6 +150,7 @@ function loadUserData(username) {
   state.completedWorkoutDays =
     data.completedWorkoutDays && typeof data.completedWorkoutDays === 'object' ? data.completedWorkoutDays : {};
   state.personalBests = data.personalBests && typeof data.personalBests === 'object' ? data.personalBests : {};
+  state.videoLibrary = {};
   state.activeSession = null;
   state.selectedDay = null;
   state.activeUser = username;
@@ -551,6 +566,80 @@ function switchTab(target) {
   if (target === 'personal-bests') {
     renderPersonalBestsTab();
   }
+  if (target === 'videos') {
+    renderVideosTab();
+  }
+}
+
+function renderVideosTab() {
+  if (!videosRoot) return;
+  videosRoot.innerHTML = '';
+  const allVideos = [];
+  Object.values(state.videoLibrary || {}).forEach((group) => {
+    (group.videos || []).forEach((video) => {
+      allVideos.push(video);
+    });
+  });
+
+  if (allVideos.length === 0) {
+    videosRoot.innerHTML = '<p class="muted">No videos yet. Record one from Active workout.</p>';
+    return;
+  }
+
+  const byDate = {};
+  allVideos.forEach((item) => {
+    const key = item.dayKey || item.dateLabel || 'Unknown date';
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(item);
+  });
+
+  Object.keys(byDate)
+    .sort((a, b) => b.localeCompare(a))
+    .forEach((dayKey) => {
+      const dayVideos = byDate[dayKey].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      const dayDetails = document.createElement('details');
+      dayDetails.className = 'video-day-group';
+
+      const summary = document.createElement('summary');
+      summary.className = 'video-day-summary';
+      const dateText = dayVideos[0]?.dateLabel || dayKey;
+      const workoutTitle = String(dayVideos[0]?.workoutTitle || '').trim();
+      const headerLabel = workoutTitle ? `${dateText} - ${workoutTitle}` : dateText;
+      summary.innerHTML = `${escapeHtml(headerLabel)}<span class="video-day-count">${dayVideos.length}</span>`;
+
+      const body = document.createElement('div');
+      body.className = 'video-list';
+
+      dayVideos.forEach((item) => {
+        const vCard = document.createElement('div');
+        vCard.className = 'video-item';
+        const toggleButton = document.createElement('button');
+        toggleButton.type = 'button';
+        toggleButton.className = 'secondary-btn video-item-toggle';
+        const setNum = Number.isFinite(item.setIndex) ? item.setIndex + 1 : 1;
+        const labelExercise = item.exerciseName || 'Exercise';
+        toggleButton.textContent = `${labelExercise} - Set ${setNum}`;
+
+        const video = document.createElement('video');
+        video.className = 'hidden';
+        video.controls = true;
+        video.src = item.url;
+
+        toggleButton.addEventListener('click', () => {
+          const isHidden = video.classList.contains('hidden');
+          video.classList.toggle('hidden', !isHidden);
+          toggleButton.textContent = isHidden
+            ? `${labelExercise} - Set ${setNum} (Hide)`
+            : `${labelExercise} - Set ${setNum}`;
+        });
+
+        vCard.append(toggleButton, video);
+        body.appendChild(vCard);
+      });
+
+      dayDetails.append(summary, body);
+      videosRoot.appendChild(dayDetails);
+    });
 }
 
 function collectWorkoutExerciseNames(workout) {
@@ -687,6 +776,7 @@ function beginWorkoutSession(savedIndex) {
     dayKey: state.selectedDay,
     title: saved.title,
     templateKey: makeTemplateKey(saved),
+    sessionId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     blocks: buildSessionBlocks(saved),
     startedAt: Date.now()
   };
@@ -700,7 +790,7 @@ function clearActiveSession() {
   renderActiveWorkoutPanel();
 }
 
-function appendActiveSetRow(container, bi, ej, setIndex, exerciseName) {
+function appendActiveSetRow(container, bi, ej, setIndex, exerciseName, existingLog = null) {
   const row = document.createElement('div');
   row.className = 'active-set-row';
   row.dataset.bi = String(bi);
@@ -717,15 +807,296 @@ function appendActiveSetRow(container, bi, ej, setIndex, exerciseName) {
   reps.className = 'active-reps';
   reps.placeholder = 'Reps';
   reps.setAttribute('aria-label', `Reps ${exerciseName} set ${setIndex + 1}`);
+  reps.value = existingLog?.reps || '';
 
   const weight = document.createElement('input');
   weight.type = 'text';
   weight.className = 'active-weight';
   weight.placeholder = 'Weight (optional)';
   weight.setAttribute('aria-label', `Weight ${exerciseName} set ${setIndex + 1}`);
+  weight.value = existingLog?.weight || '';
 
-  row.append(label, reps, weight);
+  const videoButton = document.createElement('button');
+  videoButton.type = 'button';
+  videoButton.className = 'secondary-btn take-video-btn';
+  videoButton.textContent = 'Take Video';
+  videoButton.addEventListener('click', () => {
+    openVideoCaptureForSet({ bi, ej, si: setIndex, exerciseName });
+  });
+
+  row.append(label, reps, weight, videoButton);
   container.appendChild(row);
+}
+
+function getVideoDateLabel() {
+  const now = new Date();
+  return now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function stopActiveVideoStream() {
+  if (!activeVideoStream) return;
+  activeVideoStream.getTracks().forEach((t) => t.stop());
+  activeVideoStream = null;
+}
+
+async function startVideoPreviewStream() {
+  stopActiveVideoStream();
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: videoFacingMode },
+    audio: true
+  });
+  activeVideoStream = stream;
+  if (videoPreview) {
+    videoPreview.srcObject = stream;
+  }
+}
+
+function closeVideoCaptureModal() {
+  if (activeMediaRecorder && activeMediaRecorder.state === 'recording') {
+    activeMediaRecorder.stop();
+  }
+  stopActiveVideoStream();
+  activeMediaRecorder = null;
+  activeVideoChunks = [];
+  activeVideoContext = null;
+  if (recordVideoButton) {
+    recordVideoButton.classList.remove('recording');
+  }
+  if (videoCaptureModal) {
+    videoCaptureModal.classList.add('hidden');
+  }
+}
+
+function addVideoToLibrary(context, blob) {
+  const exerciseName = context?.exerciseName || 'Exercise';
+  const key = normalizeExerciseKey(exerciseName) || 'exercise';
+  if (!state.videoLibrary[key]) {
+    state.videoLibrary[key] = {
+      exerciseName,
+      videos: []
+    };
+  }
+  const url = URL.createObjectURL(blob);
+  const dayKey = state.activeSession?.dayKey || '';
+  const localDate = dayKey ? parseDateKey(dayKey) : new Date();
+  const dateLabel = localDate
+    ? localDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : getVideoDateLabel();
+  const workoutTitle = String(state.activeSession?.title || '').trim();
+  const sessionId = String(state.activeSession?.sessionId || '');
+  state.videoLibrary[key].videos.push({
+    url,
+    dateLabel,
+    dayKey,
+    workoutTitle,
+    sessionId,
+    exerciseName,
+    setIndex: Number.isFinite(context?.si) ? context.si : 0,
+    timestamp: Date.now()
+  });
+  renderVideosTab();
+}
+
+function purgeVideosWhere(predicate) {
+  Object.keys(state.videoLibrary || {}).forEach((groupKey) => {
+    const group = state.videoLibrary[groupKey];
+    if (!group || !Array.isArray(group.videos)) return;
+    const kept = [];
+    group.videos.forEach((video) => {
+      if (predicate(video)) {
+        if (video?.url) URL.revokeObjectURL(video.url);
+      } else {
+        kept.push(video);
+      }
+    });
+    if (kept.length === 0) {
+      delete state.videoLibrary[groupKey];
+    } else {
+      group.videos = kept;
+    }
+  });
+}
+
+function removeVideosForCalendarEntry(dayKey, entry) {
+  if (!entry) return;
+  const sessionId = String(entry.sessionId || '');
+  const title = String(entry.title || '').trim();
+  purgeVideosWhere((video) => {
+    if (!video) return false;
+    if (String(video.dayKey || '') !== String(dayKey || '')) return false;
+    if (sessionId && String(video.sessionId || '') === sessionId) return true;
+    if (title && String(video.workoutTitle || '') === title) return true;
+    return false;
+  });
+}
+
+async function openVideoCaptureForSet(context) {
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    alert('Video capture is not supported in this browser.');
+    return;
+  }
+  activeVideoContext = context;
+  videoFacingMode = 'environment';
+  if (videoCaptureStatus) {
+    videoCaptureStatus.textContent = `Recording for ${context.exerciseName}, set ${context.si + 1}.`;
+  }
+  if (recordVideoButton) {
+    recordVideoButton.classList.remove('recording');
+  }
+  videoCaptureModal?.classList.remove('hidden');
+  try {
+    await startVideoPreviewStream();
+  } catch (error) {
+    videoCaptureModal?.classList.add('hidden');
+    alert('Unable to access camera/microphone.');
+  }
+}
+
+async function switchCaptureCamera() {
+  videoFacingMode = videoFacingMode === 'environment' ? 'user' : 'environment';
+  try {
+    await startVideoPreviewStream();
+  } catch (error) {
+    videoFacingMode = videoFacingMode === 'environment' ? 'user' : 'environment';
+    alert('Unable to switch camera.');
+  }
+}
+
+function toggleVideoRecording() {
+  if (!activeVideoStream) return;
+  if (activeMediaRecorder && activeMediaRecorder.state === 'recording') {
+    activeMediaRecorder.stop();
+    return;
+  }
+  activeVideoChunks = [];
+  try {
+    activeMediaRecorder = new MediaRecorder(activeVideoStream);
+  } catch (error) {
+    alert('Recording is not available.');
+    return;
+  }
+  activeMediaRecorder.ondataavailable = (event) => {
+    if (event.data && event.data.size > 0) {
+      activeVideoChunks.push(event.data);
+    }
+  };
+  activeMediaRecorder.onstop = () => {
+    if (recordVideoButton) {
+      recordVideoButton.classList.remove('recording');
+    }
+    const blob = new Blob(activeVideoChunks, { type: 'video/webm' });
+    if (blob.size > 0 && activeVideoContext) {
+      addVideoToLibrary(activeVideoContext, blob);
+      switchTab('videos');
+    }
+    closeVideoCaptureModal();
+  };
+  activeMediaRecorder.start();
+  if (recordVideoButton) {
+    recordVideoButton.classList.add('recording');
+  }
+}
+
+function syncActiveSessionSetLogsFromDom() {
+  if (!state.activeSession || !activeWorkoutRoot) return;
+  const root = activeWorkoutRoot;
+
+  state.activeSession.blocks.forEach((block, bi) => {
+    if (block.type === 'superset' && Array.isArray(block.exercises)) {
+      block.exercises.forEach((ex, ej) => {
+        const nextLogs = [];
+        for (let si = 0; si < ex.plannedSets; si++) {
+          const row = root.querySelector(`[data-bi="${bi}"][data-ej="${ej}"][data-si="${si}"]`);
+          if (!row) {
+            nextLogs.push(ex.setLogs?.[si] || { reps: '', weight: '' });
+            continue;
+          }
+          nextLogs.push({
+            reps: row.querySelector('.active-reps')?.value.trim() || '',
+            weight: row.querySelector('.active-weight')?.value.trim() || ''
+          });
+        }
+        ex.setLogs = nextLogs;
+      });
+      return;
+    }
+
+    const nextLogs = [];
+    for (let si = 0; si < block.plannedSets; si++) {
+      const row = root.querySelector(`[data-bi="${bi}"][data-ej="-1"][data-si="${si}"]`);
+      if (!row) {
+        nextLogs.push(block.setLogs?.[si] || { reps: '', weight: '' });
+        continue;
+      }
+      nextLogs.push({
+        reps: row.querySelector('.active-reps')?.value.trim() || '',
+        weight: row.querySelector('.active-weight')?.value.trim() || ''
+      });
+    }
+    block.setLogs = nextLogs;
+  });
+}
+
+function replaceActiveExerciseName(bi, ej) {
+  if (!state.activeSession) return;
+  syncActiveSessionSetLogsFromDom();
+
+  let targetExercise = null;
+  if (ej >= 0) {
+    const superset = state.activeSession.blocks[bi];
+    if (superset?.type === 'superset' && Array.isArray(superset.exercises)) {
+      targetExercise = superset.exercises[ej] || null;
+    }
+  } else {
+    targetExercise = state.activeSession.blocks[bi] || null;
+  }
+  if (!targetExercise) return;
+
+  const currentName = String(targetExercise.name || '').trim() || 'Exercise';
+  const nextName = prompt('Change workout', currentName);
+  if (nextName == null) return;
+  const trimmed = nextName.trim();
+  if (!trimmed) {
+    alert('Enter a workout name to replace with.');
+    return;
+  }
+  targetExercise.name = trimmed;
+  renderActiveWorkoutPanel();
+}
+
+function getActiveExerciseRef(bi, ej) {
+  if (!state.activeSession) return null;
+  if (ej >= 0) {
+    const superset = state.activeSession.blocks[bi];
+    if (superset?.type === 'superset' && Array.isArray(superset.exercises)) {
+      return superset.exercises[ej] || null;
+    }
+    return null;
+  }
+  return state.activeSession.blocks[bi] || null;
+}
+
+function adjustActiveExerciseSets(bi, ej, delta) {
+  if (!state.activeSession) return;
+  syncActiveSessionSetLogsFromDom();
+  const exercise = getActiveExerciseRef(bi, ej);
+  if (!exercise) return;
+
+  const nextPlannedSets = Math.max(1, (exercise.plannedSets || 1) + delta);
+  if (nextPlannedSets === exercise.plannedSets) return;
+  exercise.plannedSets = nextPlannedSets;
+
+  if (!Array.isArray(exercise.setLogs)) {
+    exercise.setLogs = [];
+  }
+  while (exercise.setLogs.length < nextPlannedSets) {
+    exercise.setLogs.push({ reps: '', weight: '' });
+  }
+  if (exercise.setLogs.length > nextPlannedSets) {
+    exercise.setLogs = exercise.setLogs.slice(0, nextPlannedSets);
+  }
+
+  renderActiveWorkoutPanel();
 }
 
 function renderActiveWorkoutPanel() {
@@ -765,12 +1136,37 @@ function renderActiveWorkoutPanel() {
       block.exercises.forEach((ex, ej) => {
         const card = document.createElement('div');
         card.className = 'active-exercise-card';
+
+        const head = document.createElement('div');
+        head.className = 'active-exercise-head';
         const h = document.createElement('h4');
         h.textContent = ex.name || `Exercise ${ej + 1}`;
-        card.appendChild(h);
+        const replaceButton = document.createElement('button');
+        replaceButton.type = 'button';
+        replaceButton.className = 'secondary-btn';
+        replaceButton.textContent = 'Replace';
+        replaceButton.addEventListener('click', () => replaceActiveExerciseName(bi, ej));
+        head.append(h, replaceButton);
+        card.appendChild(head);
         for (let si = 0; si < ex.plannedSets; si++) {
-          appendActiveSetRow(card, bi, ej, si, ex.name || '');
+          appendActiveSetRow(card, bi, ej, si, ex.name || '', ex.setLogs?.[si] || null);
         }
+        const setActions = document.createElement('div');
+        setActions.className = 'active-set-actions';
+        const addSetButton = document.createElement('button');
+        addSetButton.type = 'button';
+        addSetButton.className = 'secondary-btn';
+        addSetButton.textContent = '+';
+        addSetButton.setAttribute('aria-label', `Add set for ${ex.name || `exercise ${ej + 1}`}`);
+        addSetButton.addEventListener('click', () => adjustActiveExerciseSets(bi, ej, 1));
+        const removeSetButton = document.createElement('button');
+        removeSetButton.type = 'button';
+        removeSetButton.className = 'secondary-btn';
+        removeSetButton.textContent = '-';
+        removeSetButton.setAttribute('aria-label', `Remove set for ${ex.name || `exercise ${ej + 1}`}`);
+        removeSetButton.addEventListener('click', () => adjustActiveExerciseSets(bi, ej, -1));
+        setActions.append(addSetButton, removeSetButton);
+        card.appendChild(setActions);
         wrap.appendChild(card);
       });
 
@@ -778,12 +1174,37 @@ function renderActiveWorkoutPanel() {
     } else {
       const card = document.createElement('div');
       card.className = 'active-exercise-card';
+
+      const head = document.createElement('div');
+      head.className = 'active-exercise-head';
       const h = document.createElement('h4');
       h.textContent = block.name || 'Exercise';
-      card.appendChild(h);
+      const replaceButton = document.createElement('button');
+      replaceButton.type = 'button';
+      replaceButton.className = 'secondary-btn';
+      replaceButton.textContent = 'Replace';
+      replaceButton.addEventListener('click', () => replaceActiveExerciseName(bi, -1));
+      head.append(h, replaceButton);
+      card.appendChild(head);
       for (let si = 0; si < block.plannedSets; si++) {
-        appendActiveSetRow(card, bi, -1, si, block.name || '');
+        appendActiveSetRow(card, bi, -1, si, block.name || '', block.setLogs?.[si] || null);
       }
+      const setActions = document.createElement('div');
+      setActions.className = 'active-set-actions';
+      const addSetButton = document.createElement('button');
+      addSetButton.type = 'button';
+      addSetButton.className = 'secondary-btn';
+      addSetButton.textContent = '+';
+      addSetButton.setAttribute('aria-label', `Add set for ${block.name || 'exercise'}`);
+      addSetButton.addEventListener('click', () => adjustActiveExerciseSets(bi, -1, 1));
+      const removeSetButton = document.createElement('button');
+      removeSetButton.type = 'button';
+      removeSetButton.className = 'secondary-btn';
+      removeSetButton.textContent = '-';
+      removeSetButton.setAttribute('aria-label', `Remove set for ${block.name || 'exercise'}`);
+      removeSetButton.addEventListener('click', () => adjustActiveExerciseSets(bi, -1, -1));
+      setActions.append(addSetButton, removeSetButton);
+      card.appendChild(setActions);
       activeWorkoutRoot.appendChild(card);
     }
   });
@@ -835,7 +1256,8 @@ function readActiveSessionEntryFromDom() {
   return {
     title: state.activeSession.title,
     exercises,
-    templateKey: state.activeSession.templateKey
+    templateKey: state.activeSession.templateKey,
+    sessionId: state.activeSession.sessionId
   };
 }
 
@@ -1065,7 +1487,9 @@ function removeWorkoutFromDay(index) {
   }
   const workouts = state.calendarEntries[state.selectedDay] || [];
   if (index >= 0 && index < workouts.length) {
+    const removedEntry = workouts[index];
     workouts.splice(index, 1);
+    removeVideosForCalendarEntry(state.selectedDay, removedEntry);
     if (workouts.length === 0) {
       delete state.calendarEntries[state.selectedDay];
       delete state.completedWorkoutDays[state.selectedDay];
@@ -1077,6 +1501,7 @@ function removeWorkoutFromDay(index) {
     updateDashboard();
     renderCompletedWorkoutsTab();
     renderPersonalBestsTab();
+    renderVideosTab();
   }
 }
 
@@ -1318,9 +1743,15 @@ function createAccount() {
   }
 
   const users = getUsers();
-  const exists = users.some((user) => user.username.toLowerCase() === username.toLowerCase());
-  if (exists) {
-    alert('That username is already taken.');
+  const existingUser = users.find((user) => user.username.toLowerCase() === username.toLowerCase());
+  if (existingUser) {
+    if (existingUser.password === password) {
+      loadUserData(existingUser.username);
+      renderAllForActiveUser();
+      alert('Welcome back. You are now logged in.');
+      return;
+    }
+    alert('That username already exists. Use the correct password to log in.');
     return;
   }
 
@@ -1350,12 +1781,18 @@ function login() {
 }
 
 function logout() {
+  Object.values(state.videoLibrary || {}).forEach((group) => {
+    (group.videos || []).forEach((v) => {
+      if (v?.url) URL.revokeObjectURL(v.url);
+    });
+  });
   state.activeUser = null;
   state.activeSession = null;
   state.workouts = [];
   state.calendarEntries = {};
   state.completedWorkoutDays = {};
   state.personalBests = {};
+  state.videoLibrary = {};
   state.selectedDay = null;
   if (authUsernameInput) authUsernameInput.value = '';
   if (authPasswordInput) authPasswordInput.value = '';
@@ -1373,6 +1810,7 @@ function renderAllForActiveUser() {
   updateDashboard();
   renderCompletedWorkoutsTab();
   renderPersonalBestsTab();
+  renderVideosTab();
 }
 
 prevMonthButton.addEventListener('click', () => {
@@ -1410,6 +1848,20 @@ accountMenuButton?.addEventListener('click', (event) => {
 accountLogoutButton?.addEventListener('click', () => {
   logout();
 });
+switchCameraButton?.addEventListener('click', () => {
+  switchCaptureCamera();
+});
+recordVideoButton?.addEventListener('click', () => {
+  toggleVideoRecording();
+});
+closeVideoCaptureButton?.addEventListener('click', () => {
+  closeVideoCaptureModal();
+});
+videoCaptureModal?.addEventListener('click', (event) => {
+  if (event.target === videoCaptureModal) {
+    closeVideoCaptureModal();
+  }
+});
 document.addEventListener('click', (event) => {
   if (!accountMenu || !accountDropdown || accountDropdown.classList.contains('hidden')) {
     return;
@@ -1442,6 +1894,7 @@ function init() {
   renderActiveWorkoutPanel();
   renderCompletedWorkoutsTab();
   renderPersonalBestsTab();
+  renderVideosTab();
 }
 
 init();
