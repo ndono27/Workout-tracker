@@ -1590,6 +1590,14 @@ textarea {
   font-size: 1.1rem;
 }
 
+.progress-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .completed-workouts-hint {
   margin: 0 0 14px;
   font-size: 0.88rem;
@@ -1707,3 +1715,167 @@ textarea {
   white-space: pre-line;
   color: #475569;
 }
+
+.progress-section-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  padding: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+}
+
+.progress-insights {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.progress-stat-card {
+  background: linear-gradient(160deg, #ffffff 0%, #f1f5ff 100%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.progress-stat-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-bottom: 6px;
+}
+
+.progress-stat-card strong {
+  font-size: 1.2rem;
+  color: var(--text);
+}
+
+.progress-trends,
+.progress-milestones {
+  margin-bottom: 0;
+}
+
+.progress-trends h4,
+.progress-milestones h4 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.progress-trend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.progress-trend-card {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.progress-trend-card h5 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.progress-trend-card p {
+  margin: 2px 0;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.progress-delta {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.progress-milestone-list {
+  display: grid;
+  gap: 8px;
+}
+
+.progress-milestone-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+}
+
+.progress-milestone-date {
+  font-weight: 700;
+  color: #334155;
+}
+
+.progress-milestones-more {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 8px 10px;
+}
+
+.progress-milestones-more summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #334155;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.progress-consistency h4 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.progress-consistency-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.progress-consistency-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.progress-consistency-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+}
+
+.progress-consistency-card strong {
+  font-size: 1.1rem;
+}
+
+@media (max-width: 900px) {
+  .progress-insights {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .progress-trend-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+}
+
+@media (max-width: 640px) {
+  .progress-insights,
+  .progress-trend-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-consistency-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

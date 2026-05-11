@@ -1,26 +1,133 @@
 const USER_STORE_KEY = 'workoutUsers';
 const ACTIVE_USER_KEY = 'workoutActiveUser';
+const SNAPSHOT_TABLE = 'workout_snapshots';
+
+let cloudClient = null;
+let activeAuthKind = 'none';
+
+function getCloudConfig() {
+  const c = typeof window !== 'undefined' ? window.WORKOUT_TRACKER_CONFIG : null;
+  const url = typeof c?.supabaseUrl === 'string' ? c.supabaseUrl.trim() : '';
+  const key = typeof c?.supabaseAnonKey === 'string' ? c.supabaseAnonKey.trim() : '';
+  if (!url || !key) {
+    return null;
+  }
+  if (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function') {
+    return null;
+  }
+  return { supabaseUrl: url, supabaseAnonKey: key };
+}
+
+function isCloudMode() {
+  return Boolean(getCloudConfig());
+}
+
+function initCloudClient() {
+  const cfg = getCloudConfig();
+  if (!cfg) {
+    cloudClient = null;
+    return null;
+  }
+  cloudClient = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  });
+  cloudClient.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT' && activeAuthKind === 'cloud') {
+      activeAuthKind = 'none';
+      performLogoutCleanup();
+      syncAuthUi();
+      renderLoggedOutShell();
+    }
+  });
+  return cloudClient;
+}
+
+function renderLoggedOutShell() {
+  renderCalendar();
+  renderSavedWorkouts();
+  renderActiveWorkoutPanel();
+  renderCompletedWorkoutsTab();
+  renderPersonalBestsTab();
+  renderVideosTab();
+}
+
+function stripVideoBlobUrlsForRemote(payload) {
+  const clone = JSON.parse(JSON.stringify(payload));
+  if (clone.videoLibrary && typeof clone.videoLibrary === 'object') {
+    Object.keys(clone.videoLibrary).forEach((key) => {
+      const group = clone.videoLibrary[key];
+      if (!group?.videos) return;
+      group.videos = group.videos.map((v) => {
+        if (!v || typeof v !== 'object') return v;
+        const { url, ...rest } = v;
+        return rest;
+      });
+    });
+  }
+  return clone;
+}
+
+function buildCurrentUserPayload() {
+  return {
+    dataVersion: 1,
+    workouts: state.workouts,
+    calendarEntries: state.calendarEntries,
+    completedWorkoutDays: state.completedWorkoutDays,
+    personalBests: state.personalBests,
+    videoLibrary: state.videoLibrary,
+    activeSession: state.activeSession,
+    selectedDay: state.selectedDay,
+    currentDateIso: state.currentDate instanceof Date ? state.currentDate.toISOString() : null
+  };
+}
+
+function applyDataToState(data) {
+  const d = data && typeof data === 'object' ? data : buildEmptyUserData();
+  state.workouts = Array.isArray(d.workouts) ? d.workouts : [];
+  state.calendarEntries =
+    d.calendarEntries && typeof d.calendarEntries === 'object' ? d.calendarEntries : {};
+  state.completedWorkoutDays =
+    d.completedWorkoutDays && typeof d.completedWorkoutDays === 'object' ? d.completedWorkoutDays : {};
+  state.personalBests = d.personalBests && typeof d.personalBests === 'object' ? d.personalBests : {};
+  state.videoLibrary = d.videoLibrary && typeof d.videoLibrary === 'object' ? d.videoLibrary : {};
+  state.activeSession = d.activeSession && typeof d.activeSession === 'object' ? d.activeSession : null;
+  state.selectedDay = typeof d.selectedDay === 'string' ? d.selectedDay : null;
+  const parsedCurrentDate = d.currentDateIso ? new Date(d.currentDateIso) : null;
+  state.currentDate =
+    parsedCurrentDate && !Number.isNaN(parsedCurrentDate.getTime()) ? parsedCurrentDate : new Date();
+}
 
 function buildEmptyUserData() {
   return {
+    dataVersion: 1,
     workouts: [],
     calendarEntries: {},
     completedWorkoutDays: {},
-    personalBests: {}
+    personalBests: {},
+    videoLibrary: {},
+    activeSession: null,
+    selectedDay: null,
+    currentDateIso: null
   };
 }
 
 function normalizeUserRecord(rawUser) {
-  const data = rawUser && typeof rawUser === 'object' ? rawUser.data || {} : {};
+  const data = rawUser && typeof rawUser === 'object' && rawUser.data && typeof rawUser.data === 'object' ? rawUser.data : {};
   return {
     username: String(rawUser?.username || ''),
     password: String(rawUser?.password || ''),
     data: {
+      ...data,
+      dataVersion: Number.isFinite(data.dataVersion) ? data.dataVersion : 1,
       workouts: Array.isArray(data.workouts) ? data.workouts : [],
       calendarEntries: data.calendarEntries && typeof data.calendarEntries === 'object' ? data.calendarEntries : {},
       completedWorkoutDays:
         data.completedWorkoutDays && typeof data.completedWorkoutDays === 'object' ? data.completedWorkoutDays : {},
-      personalBests: data.personalBests && typeof data.personalBests === 'object' ? data.personalBests : {}
+      personalBests: data.personalBests && typeof data.personalBests === 'object' ? data.personalBests : {},
+      videoLibrary: data.videoLibrary && typeof data.videoLibrary === 'object' ? data.videoLibrary : {},
+      activeSession: data.activeSession && typeof data.activeSession === 'object' ? data.activeSession : null,
+      selectedDay: typeof data.selectedDay === 'string' ? data.selectedDay : null,
+      currentDateIso: typeof data.currentDateIso === 'string' ? data.currentDateIso : null
     }
   };
 }
@@ -31,6 +138,10 @@ function getUsers() {
 }
 
 function setUsers(users) {
+  const existingRaw = localStorage.getItem(USER_STORE_KEY);
+  if (existingRaw) {
+    localStorage.setItem(`${USER_STORE_KEY}:backup`, existingRaw);
+  }
   localStorage.setItem(USER_STORE_KEY, JSON.stringify(users.map(normalizeUserRecord)));
 }
 
@@ -93,15 +204,74 @@ const accountMenu = document.getElementById('account-menu');
 const accountMenuButton = document.getElementById('account-menu-button');
 const accountDropdown = document.getElementById('account-dropdown');
 const accountLogoutButton = document.getElementById('account-logout-button');
+const authCloudHint = document.getElementById('auth-cloud-hint');
+
+function updateAuthPanelLabels() {
+  if (!authUsernameInput) return;
+  if (isCloudMode()) {
+    authUsernameInput.type = 'email';
+    authUsernameInput.placeholder = 'Email';
+    authUsernameInput.autocomplete = 'username';
+    if (authCloudHint) {
+      authCloudHint.classList.remove('hidden');
+      authCloudHint.textContent =
+        'Use the same email and password on any browser or device. Your data is stored in your Supabase project.';
+    }
+  } else {
+    authUsernameInput.type = 'text';
+    authUsernameInput.placeholder = 'Username';
+    authUsernameInput.autocomplete = 'username';
+    if (authCloudHint) {
+      authCloudHint.classList.add('hidden');
+      authCloudHint.textContent = '';
+    }
+  }
+}
 
 let activeVideoStream = null;
 let activeMediaRecorder = null;
 let activeVideoChunks = [];
 let activeVideoContext = null;
 let videoFacingMode = 'environment';
+let scheduledSaveTimeout = null;
 
-function saveState() {
+function scheduleSaveState(delayMs = 250) {
   if (!state.activeUser) {
+    return;
+  }
+  if (scheduledSaveTimeout) {
+    clearTimeout(scheduledSaveTimeout);
+  }
+  scheduledSaveTimeout = window.setTimeout(() => {
+    scheduledSaveTimeout = null;
+    void saveState();
+  }, delayMs);
+}
+
+async function saveState() {
+  if (!state.activeUser) {
+    return;
+  }
+
+  if (activeAuthKind === 'cloud' && cloudClient) {
+    const { data: authData, error: authErr } = await cloudClient.auth.getUser();
+    if (authErr || !authData?.user) {
+      return;
+    }
+    const userId = authData.user.id;
+    const rawPayload = buildCurrentUserPayload();
+    const payload = stripVideoBlobUrlsForRemote(rawPayload);
+    const { error } = await cloudClient.from(SNAPSHOT_TABLE).upsert(
+      {
+        user_id: userId,
+        payload,
+        updated_at: new Date().toISOString()
+      },
+      { onConflict: 'user_id' }
+    );
+    if (error) {
+      console.error('Cloud save failed', error);
+    }
     return;
   }
 
@@ -111,11 +281,18 @@ function saveState() {
     return;
   }
 
+  const existingData = users[userIndex].data && typeof users[userIndex].data === 'object' ? users[userIndex].data : {};
   users[userIndex].data = {
+    ...existingData,
+    dataVersion: 1,
     workouts: state.workouts,
     calendarEntries: state.calendarEntries,
     completedWorkoutDays: state.completedWorkoutDays,
-    personalBests: state.personalBests
+    personalBests: state.personalBests,
+    videoLibrary: state.videoLibrary,
+    activeSession: state.activeSession,
+    selectedDay: state.selectedDay,
+    currentDateIso: state.currentDate instanceof Date ? state.currentDate.toISOString() : null
   };
   setUsers(users);
 }
@@ -128,9 +305,15 @@ function syncAuthUi() {
   accountDropdown?.classList.add('hidden');
   accountMenuButton?.setAttribute('aria-expanded', 'false');
   if (authStatusText) {
-    authStatusText.textContent = isLoggedIn
-      ? `Logged in as ${state.activeUser}. Your workouts and progress are saved to this account.`
-      : 'Create an account or log in to save your workouts and progress.';
+    if (isLoggedIn) {
+      const syncNote =
+        activeAuthKind === 'cloud'
+          ? ' Your progress syncs to the cloud so you can use it on other devices.'
+          : ' Your workouts and progress are saved on this browser.';
+      authStatusText.textContent = `Logged in as ${state.activeUser}.${syncNote}`;
+    } else {
+      authStatusText.textContent = 'Create an account or log in to save your workouts and progress.';
+    }
   }
 }
 
@@ -144,18 +327,108 @@ function toggleAccountDropdown() {
 function loadUserData(username) {
   const users = getUsers();
   const user = users.find((entry) => entry.username.toLowerCase() === String(username).toLowerCase());
-  const data = user ? user.data : buildEmptyUserData();
-  state.workouts = Array.isArray(data.workouts) ? data.workouts : [];
-  state.calendarEntries = data.calendarEntries && typeof data.calendarEntries === 'object' ? data.calendarEntries : {};
-  state.completedWorkoutDays =
-    data.completedWorkoutDays && typeof data.completedWorkoutDays === 'object' ? data.completedWorkoutDays : {};
-  state.personalBests = data.personalBests && typeof data.personalBests === 'object' ? data.personalBests : {};
-  state.videoLibrary = {};
-  state.activeSession = null;
-  state.selectedDay = null;
+  applyDataToState(user ? user.data : buildEmptyUserData());
   state.activeUser = username;
+  activeAuthKind = 'local';
   localStorage.setItem(ACTIVE_USER_KEY, username);
   syncAuthUi();
+}
+
+function hydrateStateFromLegacyLocalStorageKeys() {
+  const legacyWorkouts = JSON.parse(localStorage.getItem('workouts') || '[]');
+  const legacyCalendarEntries = JSON.parse(localStorage.getItem('calendarEntries') || '{}');
+  const legacyCompletedWorkoutDays = JSON.parse(localStorage.getItem('completedWorkoutDays') || '{}');
+  const legacyPersonalBests = JSON.parse(localStorage.getItem('personalBests') || '{}');
+  const hasLegacyProgress =
+    (Array.isArray(legacyWorkouts) && legacyWorkouts.length > 0) ||
+    (legacyCalendarEntries && Object.keys(legacyCalendarEntries).length > 0) ||
+    (legacyCompletedWorkoutDays && Object.keys(legacyCompletedWorkoutDays).length > 0) ||
+    (legacyPersonalBests && Object.keys(legacyPersonalBests).length > 0);
+  if (!hasLegacyProgress) return;
+  state.workouts = Array.isArray(legacyWorkouts) ? legacyWorkouts : [];
+  state.calendarEntries = legacyCalendarEntries && typeof legacyCalendarEntries === 'object' ? legacyCalendarEntries : {};
+  state.completedWorkoutDays =
+    legacyCompletedWorkoutDays && typeof legacyCompletedWorkoutDays === 'object' ? legacyCompletedWorkoutDays : {};
+  state.personalBests = legacyPersonalBests && typeof legacyPersonalBests === 'object' ? legacyPersonalBests : {};
+}
+
+async function fetchCloudPayload(userId) {
+  const { data, error } = await cloudClient
+    .from(SNAPSHOT_TABLE)
+    .select('payload')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) {
+    console.error('Cloud load failed', error);
+    return buildEmptyUserData();
+  }
+  const p = data?.payload;
+  if (p && typeof p === 'object') {
+    return normalizeUserRecord({ username: '', password: '', data: p }).data;
+  }
+  return buildEmptyUserData();
+}
+
+async function finalizeCloudSession(user) {
+  const payload = await fetchCloudPayload(user.id);
+  applyDataToState(payload);
+  const wasEmpty = isUserDataEmpty(buildCurrentUserPayload());
+  if (wasEmpty) {
+    hydrateStateFromLegacyLocalStorageKeys();
+  }
+  state.activeUser = user.email || user.id;
+  activeAuthKind = 'cloud';
+  localStorage.removeItem(ACTIVE_USER_KEY);
+  syncAuthUi();
+  const importedLegacy = wasEmpty && !isUserDataEmpty(buildCurrentUserPayload());
+  if (importedLegacy) {
+    await saveState();
+  }
+}
+
+function isUserDataEmpty(data) {
+  if (!data || typeof data !== 'object') return true;
+  const hasWorkouts = Array.isArray(data.workouts) && data.workouts.length > 0;
+  const hasCalendar = data.calendarEntries && Object.keys(data.calendarEntries).length > 0;
+  const hasCompleted = data.completedWorkoutDays && Object.keys(data.completedWorkoutDays).length > 0;
+  const hasBests = data.personalBests && Object.keys(data.personalBests).length > 0;
+  return !(hasWorkouts || hasCalendar || hasCompleted || hasBests);
+}
+
+function migrateLegacyProgressForUser(username) {
+  const users = getUsers();
+  const userIndex = users.findIndex((user) => user.username.toLowerCase() === String(username).toLowerCase());
+  if (userIndex === -1) return;
+
+  const existingData = users[userIndex].data || {};
+  if (!isUserDataEmpty(existingData)) return;
+
+  const legacyWorkouts = JSON.parse(localStorage.getItem('workouts') || '[]');
+  const legacyCalendarEntries = JSON.parse(localStorage.getItem('calendarEntries') || '{}');
+  const legacyCompletedWorkoutDays = JSON.parse(localStorage.getItem('completedWorkoutDays') || '{}');
+  const legacyPersonalBests = JSON.parse(localStorage.getItem('personalBests') || '{}');
+
+  const hasLegacyProgress =
+    (Array.isArray(legacyWorkouts) && legacyWorkouts.length > 0) ||
+    (legacyCalendarEntries && Object.keys(legacyCalendarEntries).length > 0) ||
+    (legacyCompletedWorkoutDays && Object.keys(legacyCompletedWorkoutDays).length > 0) ||
+    (legacyPersonalBests && Object.keys(legacyPersonalBests).length > 0);
+
+  if (!hasLegacyProgress) return;
+
+  users[userIndex].data = normalizeUserRecord({
+    username: users[userIndex].username,
+    password: users[userIndex].password,
+    data: {
+      ...existingData,
+      workouts: Array.isArray(legacyWorkouts) ? legacyWorkouts : [],
+      calendarEntries: legacyCalendarEntries && typeof legacyCalendarEntries === 'object' ? legacyCalendarEntries : {},
+      completedWorkoutDays:
+        legacyCompletedWorkoutDays && typeof legacyCompletedWorkoutDays === 'object' ? legacyCompletedWorkoutDays : {},
+      personalBests: legacyPersonalBests && typeof legacyPersonalBests === 'object' ? legacyPersonalBests : {}
+    }
+  }).data;
+  setUsers(users);
 }
 
 function requireAuth() {
@@ -170,7 +443,7 @@ function clearExistingCompletedChecksOnce() {
     return;
   }
   state.completedWorkoutDays = {};
-  saveState();
+  void saveState();
   localStorage.setItem(flagKey, 'true');
 }
 
@@ -563,7 +836,7 @@ function switchTab(target) {
   if (target === 'completed-workouts') {
     renderCompletedWorkoutsTab();
   }
-  if (target === 'personal-bests') {
+  if (target === 'progress') {
     renderPersonalBestsTab();
   }
   if (target === 'videos') {
@@ -677,87 +950,254 @@ function resetPersonalBestForExercise(workoutKey, exerciseKey) {
   renderPersonalBestsTab();
 }
 
+function collectCalendarEntriesSorted() {
+  const items = [];
+  Object.entries(state.calendarEntries || {}).forEach(([dateKey, entries]) => {
+    if (!Array.isArray(entries)) return;
+    entries.forEach((entry) => {
+      if (!entry || typeof entry !== 'object') return;
+      items.push({ dateKey, entry });
+    });
+  });
+  items.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  return items;
+}
+
+function buildProgressOverview(entries) {
+  const totalSessions = entries.length;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const recentCutoff = Date.now() - 30 * dayMs;
+  let recentSessions = 0;
+  const activeWeeks = new Set();
+
+  entries.forEach(({ dateKey, entry }) => {
+    const dateObj = parseDateKey(dateKey);
+    if (dateObj && dateObj.getTime() >= recentCutoff) {
+      recentSessions += 1;
+    }
+    if (dateObj) {
+      const weekStart = new Date(dateObj);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      activeWeeks.add(formatDate(weekStart));
+    }
+  });
+
+  const avgPerWeek = activeWeeks.size ? (totalSessions / activeWeeks.size).toFixed(1) : '0.0';
+  return {
+    totalSessions,
+    recentSessions,
+    avgPerWeek
+  };
+}
+
+function buildProgressMilestones(entries) {
+  const bestByExercise = {};
+  const milestones = [];
+
+  entries.forEach(({ dateKey, entry }) => {
+    const agg = aggregateMaxFromEntry(entry);
+    Object.values(agg).forEach((exAgg) => {
+      const key = normalizeExerciseKey(exAgg.displayName);
+      if (!key) return;
+      const prev = bestByExercise[key] || { maxWeight: 0 };
+      const nextWeight = Number.isFinite(exAgg.maxWeight) ? exAgg.maxWeight : 0;
+
+      if (nextWeight > prev.maxWeight) {
+        milestones.push({
+          dateKey,
+          text: `${exAgg.displayName}: new weight best ${nextWeight} lb`
+        });
+      }
+
+      bestByExercise[key] = {
+        maxWeight: Math.max(prev.maxWeight, nextWeight)
+      };
+    });
+  });
+
+  return milestones.reverse();
+}
+
+function buildExerciseTrendCards(entries, limit = 6) {
+  const byExercise = {};
+  entries.forEach(({ dateKey, entry }) => {
+    const agg = aggregateMaxFromEntry(entry);
+    Object.values(agg).forEach((exAgg) => {
+      const key = normalizeExerciseKey(exAgg.displayName);
+      if (!key) return;
+      if (!byExercise[key]) {
+        byExercise[key] = {
+          name: exAgg.displayName,
+          points: []
+        };
+      }
+      const w = Number.isFinite(exAgg.maxWeight) ? exAgg.maxWeight : 0;
+      byExercise[key].points.push({ dateKey, weight: w });
+    });
+  });
+
+  return Object.values(byExercise)
+    .map((item) => {
+      const sorted = item.points.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+      const first = sorted[0]?.weight || 0;
+      const last = sorted[sorted.length - 1]?.weight || 0;
+      return {
+        name: item.name,
+        sessions: sorted.length,
+        startWeight: first,
+        currentWeight: last,
+        delta: last - first
+      };
+    })
+    .sort((a, b) => b.sessions - a.sessions)
+    .slice(0, limit);
+}
+
+function buildConsistencyStats(entries) {
+  const uniqueDays = Array.from(new Set(entries.map((x) => x.dateKey))).sort();
+  if (!uniqueDays.length) {
+    return { currentStreak: 0, longestStreak: 0 };
+  }
+
+  let longestStreak = 1;
+  let running = 1;
+  for (let i = 1; i < uniqueDays.length; i++) {
+    const prev = parseDateKey(uniqueDays[i - 1]);
+    const cur = parseDateKey(uniqueDays[i]);
+    if (!prev || !cur) continue;
+    const diffDays = Math.round((cur.getTime() - prev.getTime()) / (24 * 60 * 60 * 1000));
+    if (diffDays === 1) {
+      running += 1;
+      if (running > longestStreak) longestStreak = running;
+    } else {
+      running = 1;
+    }
+  }
+
+  let currentStreak = 1;
+  for (let i = uniqueDays.length - 1; i > 0; i--) {
+    const prev = parseDateKey(uniqueDays[i - 1]);
+    const cur = parseDateKey(uniqueDays[i]);
+    if (!prev || !cur) break;
+    const diffDays = Math.round((cur.getTime() - prev.getTime()) / (24 * 60 * 60 * 1000));
+    if (diffDays === 1) currentStreak += 1;
+    else break;
+  }
+
+  return { currentStreak, longestStreak };
+}
+
 function renderPersonalBestsTab() {
   const root = document.getElementById('personal-bests-root');
   if (!root) return;
 
   root.innerHTML = '';
-  const pbGroups = state.personalBests && typeof state.personalBests === 'object' ? state.personalBests : {};
-  const workoutMap = {};
+  const entries = collectCalendarEntriesSorted();
+  const overview = buildProgressOverview(entries);
+  const milestones = buildProgressMilestones(entries);
+  const trendCards = buildExerciseTrendCards(entries);
+  const consistency = buildConsistencyStats(entries);
 
-  state.workouts.forEach((workout) => {
-    const title = String(workout?.title || 'Untitled').trim() || 'Untitled';
-    const key = normalizeWorkoutKey(title) || 'untitled';
-    if (!workoutMap[key]) {
-      workoutMap[key] = { title, exerciseNames: [] };
-    }
-    workoutMap[key].exerciseNames = collectWorkoutExerciseNames(workout);
-  });
+  const insights = document.createElement('section');
+  insights.className = 'progress-insights progress-section-card';
+  insights.innerHTML = `
+    <div class="progress-stat-card"><span>Total sessions</span><strong>${overview.totalSessions}</strong></div>
+    <div class="progress-stat-card"><span>Last 30 days</span><strong>${overview.recentSessions}</strong></div>
+    <div class="progress-stat-card"><span>Sessions/week</span><strong>${overview.avgPerWeek}</strong></div>
+  `;
+  root.appendChild(insights);
 
-  Object.keys(pbGroups).forEach((key) => {
-    if (!workoutMap[key]) {
-      const g = pbGroups[key];
-      workoutMap[key] = { title: g?.title || 'Untitled', exerciseNames: [] };
-    }
-  });
+  const consistencySection = document.createElement('section');
+  consistencySection.className = 'progress-consistency progress-section-card';
+  consistencySection.innerHTML = `
+    <h4>Consistency</h4>
+    <div class="progress-consistency-grid">
+      <div class="progress-consistency-card">
+        <span>Current streak</span>
+        <strong>${consistency.currentStreak} day${consistency.currentStreak === 1 ? '' : 's'}</strong>
+      </div>
+      <div class="progress-consistency-card">
+        <span>Longest streak</span>
+        <strong>${consistency.longestStreak} day${consistency.longestStreak === 1 ? '' : 's'}</strong>
+      </div>
+    </div>
+  `;
+  root.appendChild(consistencySection);
 
-  const keys = Object.keys(workoutMap).sort((a, b) => workoutMap[a].title.localeCompare(workoutMap[b].title));
-  if (keys.length === 0) {
-    root.innerHTML = '<p class="muted">No workouts yet.</p>';
-    return;
+  const trendsSection = document.createElement('section');
+  trendsSection.className = 'progress-trends progress-section-card';
+  const trendsTitle = document.createElement('h4');
+  trendsTitle.textContent = 'Exercise trends';
+  trendsSection.appendChild(trendsTitle);
+  if (!trendCards.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Log more workouts to unlock trend cards.';
+    trendsSection.appendChild(empty);
+  } else {
+    const cards = document.createElement('div');
+    cards.className = 'progress-trend-grid';
+    trendCards.forEach((card) => {
+      const deltaSign = card.delta > 0 ? '+' : '';
+      const el = document.createElement('article');
+      el.className = 'progress-trend-card';
+      el.innerHTML = `<h5>${escapeHtml(card.name)}</h5><p>Sessions: ${card.sessions}</p><p>Start: ${card.startWeight} lb</p><p>Current: ${card.currentWeight} lb</p><p class="progress-delta">Change: ${deltaSign}${card.delta} lb</p>`;
+      cards.appendChild(el);
+    });
+    trendsSection.appendChild(cards);
   }
+  root.appendChild(trendsSection);
 
-  keys.forEach((workoutKey) => {
-    const group = workoutMap[workoutKey];
-    const pbGroup = pbGroups[workoutKey]?.exercises || {};
-    const exerciseKeys = Object.keys(pbGroup);
-    const allExerciseNames = Array.from(new Set([...(group.exerciseNames || []), ...exerciseKeys.map((k) => pbGroup[k]?.displayName || k)]));
+  const milestonesSection = document.createElement('section');
+  milestonesSection.className = 'progress-milestones progress-section-card';
+  const milestoneTitle = document.createElement('h4');
+  milestoneTitle.textContent = 'Recent milestones';
+  milestonesSection.appendChild(milestoneTitle);
+  if (!milestones.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Complete workouts to generate milestones.';
+    milestonesSection.appendChild(empty);
+  } else {
+    const list = document.createElement('div');
+    list.className = 'progress-milestone-list';
+    const visibleMilestones = milestones.slice(0, 5);
+    const hiddenMilestones = milestones.slice(5);
 
-    const card = document.createElement('div');
-    card.className = 'completed-category';
+    visibleMilestones.forEach((m) => {
+      const d = parseDateKey(m.dateKey);
+      const dateLabel = d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : m.dateKey;
+      const row = document.createElement('div');
+      row.className = 'progress-milestone-item';
+      row.innerHTML = `<span class="progress-milestone-date">${dateLabel}</span><span>${escapeHtml(m.text)}</span>`;
+      list.appendChild(row);
+    });
+    milestonesSection.appendChild(list);
 
-    const header = document.createElement('div');
-    header.className = 'completed-category-summary pb-workout-summary';
-    const titleWrap = document.createElement('div');
-    titleWrap.className = 'pb-workout-title';
-    titleWrap.innerHTML = `<span>${escapeHtml(group.title)}</span>`;
+    if (hiddenMilestones.length) {
+      const moreWrap = document.createElement('details');
+      moreWrap.className = 'progress-milestones-more';
+      const summary = document.createElement('summary');
+      summary.textContent = `Show older milestones (${hiddenMilestones.length})`;
+      moreWrap.appendChild(summary);
 
-    header.append(titleWrap);
-
-    const body = document.createElement('div');
-    body.className = 'completed-category-body';
-
-    if (allExerciseNames.length === 0) {
-      body.innerHTML = '<p class="muted">No exercises in this workout.</p>';
-    } else {
-      allExerciseNames
-        .sort((a, b) => a.localeCompare(b))
-        .forEach((name) => {
-          const exKey = normalizeExerciseKey(name);
-          const pb = pbGroup[exKey] || { maxReps: 0, maxWeight: 0, topWeightSetReps: 0 };
-          const row = document.createElement('div');
-          row.className = 'pb-exercise-row';
-          const canReset = Boolean(pbGroup[exKey]);
-          row.innerHTML = `<span class="pb-exercise-name">${escapeHtml(name)}</span><span class="pb-exercise-metrics">Best reps: ${pb.maxReps || 0} | Best weight: ${pb.maxWeight || 0}<br>Set with most weight: ${pb.maxWeight || 0} for ${pb.topWeightSetReps || 0} reps</span>`;
-
-          const resetButton = document.createElement('button');
-          resetButton.type = 'button';
-          resetButton.className = 'danger-btn';
-          resetButton.textContent = 'Reset';
-          resetButton.disabled = !canReset;
-          if (canReset) {
-            resetButton.addEventListener('click', () => resetPersonalBestForExercise(workoutKey, exKey));
-          }
-
-          row.appendChild(resetButton);
-          body.appendChild(row);
-        });
+      const olderList = document.createElement('div');
+      olderList.className = 'progress-milestone-list';
+      hiddenMilestones.forEach((m) => {
+        const d = parseDateKey(m.dateKey);
+        const dateLabel = d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : m.dateKey;
+        const row = document.createElement('div');
+        row.className = 'progress-milestone-item';
+        row.innerHTML = `<span class="progress-milestone-date">${dateLabel}</span><span>${escapeHtml(m.text)}</span>`;
+        olderList.appendChild(row);
+      });
+      moreWrap.appendChild(olderList);
+      milestonesSection.appendChild(moreWrap);
     }
-
-    card.append(header, body);
-    root.appendChild(card);
-  });
+  }
+  root.appendChild(milestonesSection);
 }
+
 
 function beginWorkoutSession(savedIndex) {
   if (!requireAuth()) return;
@@ -781,12 +1221,14 @@ function beginWorkoutSession(savedIndex) {
     startedAt: Date.now()
   };
 
+  saveState();
   renderActiveWorkoutPanel();
   switchTab('active-workout');
 }
 
 function clearActiveSession() {
   state.activeSession = null;
+  saveState();
   renderActiveWorkoutPanel();
 }
 
@@ -1730,13 +2172,48 @@ function addWorkoutTemplate() {
   resetBuilder();
 }
 
-function createAccount() {
+async function createAccount() {
   const username = authUsernameInput?.value.trim() || '';
   const password = authPasswordInput?.value || '';
   if (!username) {
-    alert('Enter a username.');
+    alert(isCloudMode() ? 'Enter your email.' : 'Enter a username.');
     return;
   }
+
+  if (isCloudMode()) {
+    if (!cloudClient) {
+      alert('Cloud sync is not ready. Check config.js and your network connection.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username)) {
+      alert('Enter a valid email address.');
+      return;
+    }
+    if (password.length < 6) {
+      alert('Password must be at least 6 characters.');
+      return;
+    }
+    const { data, error } = await cloudClient.auth.signUp({ email: username, password });
+    if (error) {
+      alert(error.message || 'Could not create account.');
+      return;
+    }
+    if (data.user && !data.session) {
+      alert(
+        'Account created. If email confirmation is enabled in Supabase, check your inbox before signing in on other devices.'
+      );
+      return;
+    }
+    if (!data.session?.user) {
+      alert('Could not sign you in automatically. Try logging in.');
+      return;
+    }
+    await finalizeCloudSession(data.session.user);
+    renderAllForActiveUser();
+    alert('Account created. You are now logged in.');
+    return;
+  }
+
   if (password.length < 4) {
     alert('Password must be at least 4 characters.');
     return;
@@ -1761,14 +2238,42 @@ function createAccount() {
     data: buildEmptyUserData()
   });
   setUsers(users);
+  migrateLegacyProgressForUser(username);
   loadUserData(username);
   renderAllForActiveUser();
   alert('Account created. You are now logged in.');
 }
 
-function login() {
+async function login() {
   const username = authUsernameInput?.value.trim() || '';
   const password = authPasswordInput?.value || '';
+
+  if (isCloudMode()) {
+    if (!username) {
+      alert('Enter your email.');
+      return;
+    }
+    if (!cloudClient) {
+      alert('Cloud sync is not ready. Check config.js and your network connection.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username)) {
+      alert('Enter a valid email address.');
+      return;
+    }
+    const { data, error } = await cloudClient.auth.signInWithPassword({ email: username, password });
+    if (error) {
+      alert(error.message || 'Invalid email or password.');
+      return;
+    }
+    if (!data.session?.user) {
+      return;
+    }
+    await finalizeCloudSession(data.session.user);
+    renderAllForActiveUser();
+    return;
+  }
+
   const user = getUsers().find((entry) => entry.username.toLowerCase() === username.toLowerCase());
 
   if (!user || user.password !== password) {
@@ -1776,11 +2281,12 @@ function login() {
     return;
   }
 
+  migrateLegacyProgressForUser(user.username);
   loadUserData(user.username);
   renderAllForActiveUser();
 }
 
-function logout() {
+function performLogoutCleanup() {
   Object.values(state.videoLibrary || {}).forEach((group) => {
     (group.videos || []).forEach((v) => {
       if (v?.url) URL.revokeObjectURL(v.url);
@@ -1797,6 +2303,15 @@ function logout() {
   if (authUsernameInput) authUsernameInput.value = '';
   if (authPasswordInput) authPasswordInput.value = '';
   localStorage.removeItem(ACTIVE_USER_KEY);
+}
+
+function logout() {
+  if (activeAuthKind === 'cloud' && cloudClient) {
+    void cloudClient.auth.signOut();
+    return;
+  }
+  activeAuthKind = 'none';
+  performLogoutCleanup();
   syncAuthUi();
 }
 
@@ -1805,8 +2320,8 @@ function renderAllForActiveUser() {
   renderSavedWorkouts();
   renderActiveWorkoutPanel();
   resetBuilder();
-  const todayKey = formatDate(new Date());
-  selectDay(todayKey);
+  const startDay = state.selectedDay || formatDate(new Date());
+  selectDay(startDay);
   updateDashboard();
   renderCompletedWorkoutsTab();
   renderPersonalBestsTab();
@@ -1839,8 +2354,8 @@ workoutCompleteModal?.addEventListener('click', (event) => {
 tabButtons.forEach((button) => {
   button.addEventListener('click', () => switchTab(button.dataset.tab));
 });
-createAccountButton?.addEventListener('click', createAccount);
-loginButton?.addEventListener('click', login);
+createAccountButton?.addEventListener('click', () => void createAccount());
+loginButton?.addEventListener('click', () => void login());
 accountMenuButton?.addEventListener('click', (event) => {
   event.stopPropagation();
   toggleAccountDropdown();
@@ -1873,12 +2388,47 @@ document.addEventListener('click', (event) => {
 });
 authPasswordInput?.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') {
-    login();
+    void login();
   }
 });
+activeWorkoutRoot?.addEventListener('input', () => {
+  if (!state.activeSession) return;
+  syncActiveSessionSetLogsFromDom();
+  scheduleSaveState();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    void saveState();
+  }
+});
+window.addEventListener('pagehide', () => {
+  void saveState();
+});
+window.addEventListener('beforeunload', () => {
+  if (scheduledSaveTimeout) {
+    clearTimeout(scheduledSaveTimeout);
+    scheduledSaveTimeout = null;
+  }
+  void saveState();
+});
 
-function init() {
+async function init() {
+  updateAuthPanelLabels();
   syncAuthUi();
+  initCloudClient();
+  if (isCloudMode() && cloudClient) {
+    try {
+      const { data: sessionData } = await cloudClient.auth.getSession();
+      if (sessionData.session?.user) {
+        await finalizeCloudSession(sessionData.session.user);
+        renderAllForActiveUser();
+        return;
+      }
+    } catch (err) {
+      console.error('Cloud session restore failed', err);
+    }
+  }
+
   const rememberedUser = localStorage.getItem(ACTIVE_USER_KEY);
   if (rememberedUser) {
     const exists = getUsers().some((user) => user.username.toLowerCase() === rememberedUser.toLowerCase());
@@ -1897,4 +2447,4 @@ function init() {
   renderVideosTab();
 }
 
-init();
+void init();

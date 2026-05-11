@@ -27,6 +27,7 @@
         <input id="auth-username" type="text" placeholder="Username" autocomplete="username" />
         <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password" />
       </div>
+      <p class="muted hidden" id="auth-cloud-hint" aria-live="polite"></p>
       <div class="auth-actions">
         <button id="create-account-button" type="button" class="secondary-btn">Create account</button>
         <button id="login-button" type="button" class="primary-btn">Log in</button>
@@ -40,7 +41,7 @@
         <button class="tab-button" data-tab="active-workout" id="active-workout-tab">Active workout</button>
         <button class="tab-button" data-tab="videos">Video</button>
         <button class="tab-button" data-tab="completed-workouts">Completed workouts</button>
-        <button class="tab-button" data-tab="personal-bests">Personal Best</button>
+        <button class="tab-button" data-tab="progress">Progress</button>
       </section>
 
       <section class="tab-panel active" id="calendar">
@@ -135,10 +136,14 @@
         </div>
       </section>
 
-      <section class="tab-panel" id="personal-bests">
+      <section class="tab-panel" id="progress">
         <div class="completed-workouts-panel">
-          <h3>Personal Bests</h3>
-          <p class="muted completed-workouts-hint">Grouped by workout. Each exercise shows your best reps and best weight.</p>
+          <div class="progress-header-row">
+            <div>
+              <h3>Progress</h3>
+              <p class="muted completed-workouts-hint">Grouped by workout. Each exercise shows your best reps and best weight.</p>
+            </div>
+          </div>
           <div id="personal-bests-root" class="completed-workouts-root"></div>
         </div>
       </section>
@@ -167,6 +172,8 @@
     </div>
   </div>
 
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
