@@ -100,6 +100,7 @@ const addExerciseButton = document.getElementById('add-exercise-button');
 const addSupersetButton = document.getElementById('add-superset-button');
 const exerciseList = document.getElementById('exercise-list');
 const saveWorkoutButton = document.getElementById('save-workout-button');
+const cancelEditWorkoutButton = document.getElementById('cancel-edit-workout-button');
 const savedWorkoutsContainer = document.getElementById('saved-workouts');
 const activeWorkoutRoot = document.getElementById('active-workout-root');
 const activeWorkoutTitle = document.getElementById('active-workout-title');
@@ -143,6 +144,7 @@ let activeVideoChunks = [];
 let activeVideoContext = null;
 let videoFacingMode = 'environment';
 let scheduledSaveTimeout = null;
+let builderEditIndex = null;
 
 function scheduleSaveState(delayMs = 250) {
   if (!state.activeUser) {
@@ -1978,14 +1980,22 @@ function renderSavedWorkouts() {
     assignButton.textContent = 'Start on selected day';
     assignButton.addEventListener('click', () => assignSavedWorkoutToDay(index));
 
+    const changeButton = document.createElement('button');
+    changeButton.type = 'button';
+    changeButton.className = 'secondary-btn';
+    changeButton.textContent = 'Change';
+    changeButton.addEventListener('click', () => loadSavedWorkoutForEdit(index));
+
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'remove-exercise';
     deleteButton.textContent = 'Delete';
     deleteButton.addEventListener('click', () => deleteSavedWorkout(index));
 
-    card.appendChild(assignButton);
-    card.appendChild(deleteButton);
+    const actions = document.createElement('div');
+    actions.className = 'saved-workout-card-actions';
+    actions.append(assignButton, changeButton, deleteButton);
+    card.appendChild(actions);
     savedWorkoutsContainer.appendChild(card);
   });
 
@@ -2025,6 +2035,13 @@ function deleteSavedWorkout(index) {
   });
 
   state.workouts.splice(index, 1);
+  if (builderEditIndex !== null) {
+    if (builderEditIndex === index) {
+      resetBuilder();
+    } else if (builderEditIndex > index) {
+      builderEditIndex -= 1;
+    }
+  }
   if (state.activeSession) {
     if (state.activeSession.savedWorkoutIndex === index) {
       state.activeSession = null;
@@ -2103,9 +2120,75 @@ function collectBuilderExercises() {
 }
 
 function resetBuilder() {
+  builderEditIndex = null;
   workoutNameInput.value = '';
   exerciseList.innerHTML = '';
   addExerciseRow();
+  syncWorkoutBuilderChrome();
+}
+
+function syncWorkoutBuilderChrome() {
+  const titleEl = document.getElementById('workout-builder-title');
+  const hint = document.getElementById('workout-builder-edit-hint');
+  const cancelBtn = cancelEditWorkoutButton;
+  if (builderEditIndex !== null) {
+    if (titleEl) titleEl.textContent = 'Change workout';
+    if (hint) {
+      hint.classList.remove('hidden');
+      hint.textContent =
+        'Saving updates this template for the next time you start it. Past sessions, videos, and progress charts are not changed.';
+    }
+    cancelBtn?.classList.remove('hidden');
+    if (saveWorkoutButton) saveWorkoutButton.textContent = 'Save changes';
+  } else {
+    if (titleEl) titleEl.textContent = 'New workout';
+    if (hint) {
+      hint.classList.add('hidden');
+      hint.textContent = '';
+    }
+    cancelBtn?.classList.add('hidden');
+    if (saveWorkoutButton) saveWorkoutButton.textContent = 'Save';
+  }
+}
+
+function loadSavedWorkoutForEdit(index) {
+  if (!requireAuth()) return;
+  const w = state.workouts[index];
+  if (!w || !Array.isArray(w.exercises) || w.exercises.length === 0) {
+    alert('That workout cannot be edited.');
+    return;
+  }
+
+  builderEditIndex = index;
+  workoutNameInput.value = w.title;
+  exerciseList.innerHTML = '';
+
+  w.exercises.forEach((block) => {
+    if (block.type === 'superset' && Array.isArray(block.exercises)) {
+      exerciseList.appendChild(
+        createSupersetBlock({
+          exercises: block.exercises.map((ex) => ({
+            name: ex.name,
+            sets: ex.sets
+          }))
+        })
+      );
+    } else {
+      exerciseList.appendChild(
+        createExerciseRow({
+          name: block.name,
+          sets: block.sets
+        })
+      );
+    }
+  });
+
+  syncWorkoutBuilderChrome();
+  switchTab('workouts');
+}
+
+function cancelWorkoutBuilderEdit() {
+  resetBuilder();
 }
 
 function addExerciseRow(exercise = {}) {
@@ -2130,6 +2213,21 @@ function addWorkoutTemplate() {
 
   if (exercises.length === 0) {
     alert('Add at least one exercise.');
+    return;
+  }
+
+  if (builderEditIndex !== null) {
+    const idx = builderEditIndex;
+    state.workouts[idx] = {
+      title,
+      exercises: JSON.parse(JSON.stringify(exercises))
+    };
+    builderEditIndex = null;
+    saveState();
+    renderSavedWorkouts();
+    renderDayWorkoutOptions();
+    renderPersonalBestsTab();
+    resetBuilder();
     return;
   }
 
@@ -2246,6 +2344,7 @@ assignDayWorkoutButton.addEventListener('click', assignWorkoutFromDropdown);
 addExerciseButton.addEventListener('click', () => addExerciseRow());
 addSupersetButton.addEventListener('click', () => exerciseList.appendChild(createSupersetBlock()));
 saveWorkoutButton.addEventListener('click', addWorkoutTemplate);
+cancelEditWorkoutButton?.addEventListener('click', cancelWorkoutBuilderEdit);
 discardActiveWorkoutButton.addEventListener('click', () => {
   clearActiveSession();
 });

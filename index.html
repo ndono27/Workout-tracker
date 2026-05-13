@@ -80,7 +80,8 @@
       <section class="tab-panel" id="workouts">
         <div class="workout-layout">
           <div class="workout-builder">
-            <h3>New workout</h3>
+            <h3 id="workout-builder-title">New workout</h3>
+            <p id="workout-builder-edit-hint" class="muted workout-builder-edit-hint hidden" role="status"></p>
             <label>Name</label>
             <input id="workout-name" placeholder="Leg day" />
 
@@ -94,7 +95,10 @@
 
             <div id="exercise-list" class="exercise-list"></div>
 
-            <button id="save-workout-button" class="primary-btn">Save</button>
+            <div class="workout-builder-save-row">
+              <button type="button" id="cancel-edit-workout-button" class="secondary-btn hidden">Cancel edit</button>
+              <button id="save-workout-button" class="primary-btn" type="button">Save</button>
+            </div>
           </div>
 
           <div class="saved-workouts-panel">

@@ -602,6 +602,20 @@ main {
   font-size: 1.1rem;
 }
 
+.workout-builder-edit-hint {
+  margin: 6px 0 12px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.workout-builder-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
 .month-controls {
   display: flex;
   gap: 6px;
@@ -847,13 +861,24 @@ textarea::placeholder {
   font-size: 0.95rem;
 }
 
+.saved-workout-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.saved-workout-card-actions button {
+  margin-top: 0;
+}
+
 .workout-card p {
   margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
 }
 
-.workout-card button {
+.workout-card > button {
   margin-top: 8px;
 }
 
@@ -1352,7 +1377,18 @@ textarea {
   color: #475569;
 }
 
-.workout-card button {
+.saved-workout-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.saved-workout-card-actions button {
+  margin-top: 0;
+}
+
+.workout-card > button {
   margin-top: 16px;
 }
 
