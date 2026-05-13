@@ -941,6 +941,169 @@ function weeklyGoalMeterRgb(ratio) {
   return `rgb(${lerpChannel(c0[0], c1[0], t)}, ${lerpChannel(c0[1], c1[1], t)}, ${lerpChannel(c0[2], c1[2], t)})`;
 }
 
+function buildProgressExtraDetails(entries) {
+  if (!entries.length) return [];
+
+  const details = [];
+  const sortedKeys = Array.from(new Set(entries.map((e) => e.dateKey))).sort();
+  const firstD = parseDateKey(sortedKeys[0]);
+  if (firstD) {
+    details.push({
+      label: 'Training since',
+      value: firstD.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    });
+  }
+
+  const uniqueDays = new Set(entries.map((e) => e.dateKey)).size;
+  details.push({ label: 'Days with a log', value: String(uniqueDays) });
+
+  const titleCounts = {};
+  entries.forEach(({ entry }) => {
+    const t = String(entry?.title || '').trim() || 'Untitled';
+    titleCounts[t] = (titleCounts[t] || 0) + 1;
+  });
+  let favTitle = '';
+  let favN = 0;
+  Object.keys(titleCounts).forEach((t) => {
+    const n = titleCounts[t];
+    if (n > favN) {
+      favN = n;
+      favTitle = t;
+    }
+  });
+  if (favTitle) {
+    const short = favTitle.length > 32 ? `${favTitle.slice(0, 29)}…` : favTitle;
+    details.push({ label: 'Most logged workout', value: `${favN}× ${short}` });
+  }
+
+  const dowCounts = [0, 0, 0, 0, 0, 0, 0];
+  entries.forEach(({ dateKey }) => {
+    const d = parseDateKey(dateKey);
+    if (d) dowCounts[d.getDay()] += 1;
+  });
+  const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  let bestN = 0;
+  let bestI = 0;
+  for (let i = 0; i < 7; i++) {
+    if (dowCounts[i] > bestN) {
+      bestN = dowCounts[i];
+      bestI = i;
+    }
+  }
+  if (bestN > 0) {
+    details.push({ label: 'Busiest weekday', value: `${dowNames[bestI]} (${bestN})` });
+  }
+
+  const now = new Date();
+  const thisYM = now.getFullYear() * 12 + now.getMonth();
+  const prevMonthRef = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastYM = prevMonthRef.getFullYear() * 12 + prevMonthRef.getMonth();
+  let thisMonthSessions = 0;
+  let lastMonthSessions = 0;
+  entries.forEach(({ dateKey }) => {
+    const d = parseDateKey(dateKey);
+    if (!d) return;
+    const ym = d.getFullYear() * 12 + d.getMonth();
+    if (ym === thisYM) thisMonthSessions += 1;
+    else if (ym === lastYM) lastMonthSessions += 1;
+  });
+  if (thisMonthSessions > 0 || lastMonthSessions > 0) {
+    let tail = '';
+    if (lastMonthSessions === 0 && thisMonthSessions > 0) {
+      tail = 'first month in range';
+    } else if (lastMonthSessions > 0) {
+      const pct = Math.round(((thisMonthSessions - lastMonthSessions) / lastMonthSessions) * 100);
+      if (pct > 0) tail = `+${pct}% vs prior month`;
+      else if (pct < 0) tail = `${pct}% vs prior month`;
+      else tail = 'even with prior month';
+    }
+    const value =
+      tail === '' ? `${thisMonthSessions} this month` : `${thisMonthSessions} this month · ${tail}`;
+    details.push({ label: 'Month momentum', value });
+  }
+
+  const dayDates = sortedKeys
+    .map((k) => parseDateKey(k))
+    .filter((d) => d && !Number.isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+  let maxGapDays = 0;
+  for (let i = 1; i < dayDates.length; i++) {
+    const gap = Math.round((dayDates[i].getTime() - dayDates[i - 1].getTime()) / 86400000) - 1;
+    if (gap > maxGapDays) maxGapDays = gap;
+  }
+  if (maxGapDays > 0) {
+    details.push({
+      label: 'Longest gap between logs',
+      value: `${maxGapDays} day${maxGapDays === 1 ? '' : 's'}`
+    });
+  }
+
+  const exerciseNames = new Set();
+  entries.forEach(({ entry }) => {
+    if (!entry || !Array.isArray(entry.exercises)) return;
+    entry.exercises.forEach((block) => {
+      if (block.type === 'superset' && Array.isArray(block.exercises)) {
+        block.exercises.forEach((ex) => {
+          const n = String(ex?.name || '').trim();
+          if (n) exerciseNames.add(n);
+        });
+      } else {
+        const n = String(block?.name || '').trim();
+        if (n) exerciseNames.add(n);
+      }
+    });
+  });
+  if (exerciseNames.size > 0) {
+    details.push({ label: 'Different exercises logged', value: String(exerciseNames.size) });
+  }
+
+  const last = dayDates[dayDates.length - 1];
+  if (last) {
+    const daysSince = Math.floor((Date.now() - last.getTime()) / 86400000);
+    if (daysSince >= 0) {
+      details.push({
+        label: 'Days since last log',
+        value: daysSince === 0 ? 'Today' : String(daysSince)
+      });
+    }
+  }
+
+  return details;
+}
+
+function appendProgressDetailsSection(root, entries) {
+  const items = buildProgressExtraDetails(entries);
+  const section = document.createElement('section');
+  section.className = 'progress-details progress-section-card';
+  const h4 = document.createElement('h4');
+  h4.textContent = 'At a glance';
+  section.appendChild(h4);
+
+  if (!items.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Complete a workout to see extra progress details here.';
+    section.appendChild(empty);
+    root.appendChild(section);
+    return;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'progress-details-grid';
+  items.forEach(({ label, value }) => {
+    const card = document.createElement('div');
+    card.className = 'progress-detail-card';
+    const lab = document.createElement('span');
+    lab.textContent = label;
+    const val = document.createElement('strong');
+    val.textContent = value;
+    card.append(lab, val);
+    grid.appendChild(card);
+  });
+  section.appendChild(grid);
+  root.appendChild(section);
+}
+
 function appendWeeklyGoalConsistencySection(root, entries) {
   const weekCount = countSessionsInCurrentWeek(entries);
   const goal = state.weeklyWorkoutGoal;
@@ -1088,6 +1251,8 @@ function renderPersonalBestsTab() {
     <div class="progress-stat-card"><span>Sessions/week</span><strong>${overview.avgPerWeek}</strong></div>
   `;
   root.appendChild(insights);
+
+  appendProgressDetailsSection(root, entries);
 
   appendWeeklyGoalConsistencySection(root, entries);
 

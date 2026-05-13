@@ -1813,13 +1813,45 @@ textarea {
   color: var(--text);
 }
 
+.progress-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  gap: 8px;
+}
+
+.progress-detail-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+  padding: 9px 11px;
+}
+
+.progress-detail-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  line-height: 1.25;
+}
+
+.progress-detail-card strong {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
 .progress-trends,
 .progress-milestones {
   margin-bottom: 0;
 }
 
 .progress-trends h4,
-.progress-milestones h4 {
+.progress-milestones h4,
+.progress-details h4 {
   margin: 0 0 8px;
   font-size: 0.95rem;
 }
@@ -1979,6 +2011,10 @@ textarea {
 @media (max-width: 640px) {
   .progress-insights,
   .progress-trend-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-details-grid {
     grid-template-columns: 1fr;
   }
 
