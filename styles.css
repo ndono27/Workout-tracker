@@ -195,6 +195,32 @@ main {
   border-color: var(--accent);
 }
 
+.tab-button[data-tab='progress'] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weekly-goal-tab-badge {
+  display: inline-block;
+  min-width: 1.75em;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.25;
+  border-radius: 999px;
+}
+
+.tab-button.active .weekly-goal-tab-badge {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.tab-button:not(.active) .weekly-goal-tab-badge {
+  background: rgba(99, 102, 241, 0.2);
+  color: #4f46e5;
+}
+
 .tab-panel {
   display: none;
 }
@@ -1833,28 +1859,74 @@ textarea {
   font-size: 0.95rem;
 }
 
-.progress-consistency-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.progress-weekly-goal-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 16px;
+  justify-content: space-between;
 }
 
-.progress-consistency-card {
+.progress-weekly-goal-settings {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.progress-weekly-goal-settings label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.progress-weekly-goal-input-row input {
+  width: 100%;
+  max-width: 120px;
+  padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #ffffff;
-  padding: 10px 12px;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-.progress-consistency-card span {
-  display: block;
-  color: var(--muted);
-  font-size: 0.8rem;
-  margin-bottom: 6px;
+.progress-weekly-goal-meter {
+  flex: 0 0 auto;
+  min-width: 120px;
+  min-height: 88px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  transition: background 0.35s ease;
 }
 
-.progress-consistency-card strong {
-  font-size: 1.1rem;
+.progress-weekly-goal-count {
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+.progress-weekly-goal-slash {
+  font-size: 1.35rem;
+  opacity: 0.9;
+  font-weight: 700;
+}
+
+.progress-weekly-goal-target {
+  font-size: 1.5rem;
+  font-weight: 700;
+  opacity: 0.95;
+}
+
+.progress-weekly-goal-hint {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 @media (max-width: 900px) {
@@ -1874,8 +1946,14 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .progress-consistency-grid {
-    grid-template-columns: 1fr;
+  .progress-weekly-goal-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .progress-weekly-goal-meter {
+    width: 100%;
+    min-height: 76px;
   }
 }
 

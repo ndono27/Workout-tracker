@@ -27,7 +27,6 @@
         <input id="auth-username" type="text" placeholder="Username" autocomplete="username" />
         <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password" />
       </div>
-      <p class="muted hidden" id="auth-cloud-hint" aria-live="polite"></p>
       <div class="auth-actions">
         <button id="create-account-button" type="button" class="secondary-btn">Create account</button>
         <button id="login-button" type="button" class="primary-btn">Log in</button>
@@ -41,7 +40,10 @@
         <button class="tab-button" data-tab="active-workout" id="active-workout-tab">Active workout</button>
         <button class="tab-button" data-tab="videos">Video</button>
         <button class="tab-button" data-tab="completed-workouts">Completed workouts</button>
-        <button class="tab-button" data-tab="progress">Progress</button>
+        <button class="tab-button" data-tab="progress" type="button">
+          Progress
+          <span id="weekly-goal-tab-badge" class="weekly-goal-tab-badge hidden" aria-live="polite"></span>
+        </button>
       </section>
 
       <section class="tab-panel active" id="calendar">
@@ -172,8 +174,6 @@
     </div>
   </div>
 
-  <script src="config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/dist/umd/supabase.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
