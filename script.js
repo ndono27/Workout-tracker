@@ -1104,6 +1104,244 @@ function appendProgressDetailsSection(root, entries) {
   root.appendChild(section);
 }
 
+function accumulateVolumeFromEntries(entries) {
+  let totalSets = 0;
+  let totalReps = 0;
+  entries.forEach(({ entry }) => {
+    if (!entry || !Array.isArray(entry.exercises)) return;
+    entry.exercises.forEach((block) => {
+      if (block.type === 'superset' && Array.isArray(block.exercises)) {
+        block.exercises.forEach((ex) => {
+          (ex.setLogs || []).forEach((log) => {
+            totalSets += 1;
+            const r = parseInt(String(log?.reps || '').trim(), 10);
+            if (Number.isFinite(r) && r > 0) totalReps += r;
+          });
+        });
+      } else {
+        (block.setLogs || []).forEach((log) => {
+          totalSets += 1;
+          const r = parseInt(String(log?.reps || '').trim(), 10);
+          if (Number.isFinite(r) && r > 0) totalReps += r;
+        });
+      }
+    });
+  });
+  return { totalSets, totalReps };
+}
+
+function countSessionsInDateRange(entries, rangeStart, rangeEnd) {
+  const t0 = rangeStart.getTime();
+  const t1 = rangeEnd.getTime();
+  let n = 0;
+  entries.forEach(({ dateKey }) => {
+    const d = parseDateKey(dateKey);
+    if (!d) return;
+    const t = d.getTime();
+    if (t >= t0 && t <= t1) n += 1;
+  });
+  return n;
+}
+
+function buildRollingWeekSessionCounts(entries) {
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  const lastStart = new Date(end);
+  lastStart.setDate(lastStart.getDate() - 6);
+  lastStart.setHours(0, 0, 0, 0);
+  const last7 = countSessionsInDateRange(entries, lastStart, end);
+
+  const prevEnd = new Date(lastStart);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+  prevEnd.setHours(23, 59, 59, 999);
+  const prevStart = new Date(prevEnd);
+  prevStart.setDate(prevStart.getDate() - 6);
+  prevStart.setHours(0, 0, 0, 0);
+  const prev7 = countSessionsInDateRange(entries, prevStart, prevEnd);
+
+  return { last7, prev7 };
+}
+
+function countWeeksWithSessions(entries) {
+  const activeWeeks = new Set();
+  entries.forEach(({ dateKey }) => {
+    const dateObj = parseDateKey(dateKey);
+    if (!dateObj) return;
+    const weekStart = new Date(dateObj);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    activeWeeks.add(formatDate(weekStart));
+  });
+  return activeWeeks.size;
+}
+
+function buildTopExerciseAppearances(entries, limit = 6) {
+  const countByKey = {};
+  const nameByKey = {};
+  entries.forEach(({ entry }) => {
+    if (!entry || !Array.isArray(entry.exercises)) return;
+    const keysThisSession = new Set();
+    entry.exercises.forEach((block) => {
+      if (block.type === 'superset' && Array.isArray(block.exercises)) {
+        block.exercises.forEach((ex) => {
+          const key = normalizeExerciseKey(ex.name);
+          if (!key) return;
+          keysThisSession.add(key);
+          if (!nameByKey[key]) nameByKey[key] = String(ex.name || '').trim() || key;
+        });
+      } else {
+        const key = normalizeExerciseKey(block.name);
+        if (!key) return;
+        keysThisSession.add(key);
+        if (!nameByKey[key]) nameByKey[key] = String(block.name || '').trim() || key;
+      }
+    });
+    keysThisSession.forEach((k) => {
+      countByKey[k] = (countByKey[k] || 0) + 1;
+    });
+  });
+  return Object.keys(countByKey)
+    .map((k) => ({ name: nameByKey[k], count: countByKey[k] }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+function summarizePersonalBestsStore() {
+  let exerciseSlots = 0;
+  let workoutTemplates = 0;
+  Object.values(state.personalBests || {}).forEach((group) => {
+    if (!group || typeof group !== 'object') return;
+    const ex = group.exercises;
+    if (!ex || typeof ex !== 'object') return;
+    const n = Object.keys(ex).length;
+    if (n === 0) return;
+    workoutTemplates += 1;
+    exerciseSlots += n;
+  });
+  return { exerciseSlots, workoutTemplates };
+}
+
+function appendProgressTrainingLoadSection(root, entries) {
+  const section = document.createElement('section');
+  section.className = 'progress-training-load progress-section-card';
+  const h4 = document.createElement('h4');
+  h4.textContent = 'Training load & rhythm';
+  section.appendChild(h4);
+
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Finish workouts with logged sets to see load and rolling-week rhythm.';
+    section.appendChild(empty);
+    root.appendChild(section);
+    return;
+  }
+
+  const { totalSets, totalReps } = accumulateVolumeFromEntries(entries);
+  const { last7, prev7 } = buildRollingWeekSessionCounts(entries);
+  const weeks = countWeeksWithSessions(entries);
+  const uniqueTitles = new Set(
+    entries.map((e) => String(e.entry?.title || '').trim()).filter(Boolean)
+  ).size;
+
+  const repsLabel = totalReps > 0 ? totalReps.toLocaleString() : '—';
+  let vsTail = '';
+  if (prev7 > 0) {
+    const pct = Math.round(((last7 - prev7) / prev7) * 100);
+    if (pct > 0) vsTail = ` (+${pct}% vs prior week)`;
+    else if (pct < 0) vsTail = ` (${pct}% vs prior week)`;
+    else vsTail = ' (same as prior week)';
+  } else if (last7 > 0) {
+    vsTail = ' (no prior window yet)';
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'progress-details-grid';
+  const cells = [
+    { label: 'Total sets logged', value: String(totalSets) },
+    { label: 'Total reps logged', value: repsLabel },
+    { label: 'Last 7 days', value: `${last7} session${last7 === 1 ? '' : 's'}${vsTail}` },
+    { label: 'Prior 7 days', value: `${prev7} session${prev7 === 1 ? '' : 's'}` },
+    { label: 'Weeks with a workout', value: String(weeks) },
+    { label: 'Unique workout names', value: String(uniqueTitles) }
+  ];
+  cells.forEach(({ label, value }) => {
+    const card = document.createElement('div');
+    card.className = 'progress-detail-card';
+    const lab = document.createElement('span');
+    lab.textContent = label;
+    const val = document.createElement('strong');
+    val.textContent = value;
+    card.append(lab, val);
+    grid.appendChild(card);
+  });
+  section.appendChild(grid);
+  root.appendChild(section);
+}
+
+function appendProgressTopExercisesSection(root, entries) {
+  const section = document.createElement('section');
+  section.className = 'progress-top-exercises progress-section-card';
+  const h4 = document.createElement('h4');
+  h4.textContent = 'Most-trained lifts';
+  section.appendChild(h4);
+
+  const top = buildTopExerciseAppearances(entries, 6);
+  if (!top.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Log workouts with exercise names to rank your most-trained movements.';
+    section.appendChild(empty);
+    root.appendChild(section);
+    return;
+  }
+
+  const hint = document.createElement('p');
+  hint.className = 'muted progress-top-exercises-hint';
+  hint.textContent = 'Counted once per workout when the exercise appears (including supersets).';
+  section.appendChild(hint);
+
+  const list = document.createElement('ol');
+  list.className = 'progress-top-exercises-list';
+  top.forEach((row, i) => {
+    const li = document.createElement('li');
+    li.className = 'progress-top-exercises-item';
+    const rank = document.createElement('span');
+    rank.className = 'progress-top-exercises-rank';
+    rank.textContent = String(i + 1);
+    const name = document.createElement('span');
+    name.className = 'progress-top-exercises-name';
+    name.textContent = row.name;
+    const count = document.createElement('span');
+    count.className = 'progress-top-exercises-count';
+    count.textContent = `${row.count} workout${row.count === 1 ? '' : 's'}`;
+    li.append(rank, name, count);
+    list.appendChild(li);
+  });
+  section.appendChild(list);
+  root.appendChild(section);
+}
+
+function appendProgressRecordBookSection(root) {
+  const section = document.createElement('section');
+  section.className = 'progress-record-book progress-section-card';
+  const h4 = document.createElement('h4');
+  h4.textContent = 'Record book';
+  section.appendChild(h4);
+
+  const { exerciseSlots, workoutTemplates } = summarizePersonalBestsStore();
+  const p = document.createElement('p');
+  p.className = 'progress-record-book-summary';
+  if (exerciseSlots === 0) {
+    p.classList.add('muted');
+    p.textContent =
+      'Personal bests build as you complete workouts with weight logged. They stay grouped by workout template.';
+  } else {
+    p.textContent = `You are tracking ${exerciseSlots} exercise best${exerciseSlots === 1 ? '' : 's'} across ${workoutTemplates} workout template${workoutTemplates === 1 ? '' : 's'}. See the Progress area for weight trends and milestones.`;
+  }
+  section.appendChild(p);
+  root.appendChild(section);
+}
+
 function appendWeeklyGoalConsistencySection(root, entries) {
   const weekCount = countSessionsInCurrentWeek(entries);
   const goal = state.weeklyWorkoutGoal;
@@ -1279,6 +1517,10 @@ function renderPersonalBestsTab() {
     trendsSection.appendChild(cards);
   }
   root.appendChild(trendsSection);
+
+  appendProgressTrainingLoadSection(root, entries);
+  appendProgressTopExercisesSection(root, entries);
+  appendProgressRecordBookSection(root);
 
   const milestonesSection = document.createElement('section');
   milestonesSection.className = 'progress-milestones progress-section-card';

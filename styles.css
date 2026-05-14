@@ -1844,6 +1844,55 @@ textarea {
   word-break: break-word;
 }
 
+.progress-top-exercises-hint {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.progress-top-exercises-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.progress-top-exercises-item {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  font-size: 0.86rem;
+}
+
+.progress-top-exercises-rank {
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.progress-top-exercises-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.progress-top-exercises-count {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.progress-record-book-summary {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: #334155;
+}
+
 .progress-trends,
 .progress-milestones {
   margin-bottom: 0;
@@ -1851,7 +1900,10 @@ textarea {
 
 .progress-trends h4,
 .progress-milestones h4,
-.progress-details h4 {
+.progress-details h4,
+.progress-training-load h4,
+.progress-top-exercises h4,
+.progress-record-book h4 {
   margin: 0 0 8px;
   font-size: 0.95rem;
 }
