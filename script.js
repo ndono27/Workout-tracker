@@ -941,40 +941,78 @@ function weeklyGoalMeterRgb(ratio) {
   return `rgb(${lerpChannel(c0[0], c1[0], t)}, ${lerpChannel(c0[1], c1[1], t)}, ${lerpChannel(c0[2], c1[2], t)})`;
 }
 
-function buildProgressExtraDetails(entries) {
-  if (!entries.length) return [];
+function countVideoClipsInLibrary() {
+  let n = 0;
+  Object.values(state.videoLibrary || {}).forEach((group) => {
+    if (group?.videos && Array.isArray(group.videos)) n += group.videos.length;
+  });
+  return n;
+}
 
+function longestConsecutiveTrainingDayStreak(sortedUniqueDateKeys) {
+  const dates = sortedUniqueDateKeys
+    .map((k) => parseDateKey(k))
+    .filter((d) => d && !Number.isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+  if (!dates.length) return 0;
+  let best = 1;
+  let cur = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const diff = Math.round((dates[i].getTime() - dates[i - 1].getTime()) / 86400000);
+    if (diff === 1) cur += 1;
+    else if (diff > 1) {
+      best = Math.max(best, cur);
+      cur = 1;
+    }
+  }
+  return Math.max(best, cur);
+}
+
+function averageTrainingDayGapDays(sortedUniqueDateKeys) {
+  const dates = sortedUniqueDateKeys
+    .map((k) => parseDateKey(k))
+    .filter((d) => d && !Number.isNaN(d.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+  if (dates.length < 2) return null;
+  let sum = 0;
+  for (let i = 1; i < dates.length; i++) {
+    sum += Math.round((dates[i].getTime() - dates[i - 1].getTime()) / 86400000);
+  }
+  const avg = sum / (dates.length - 1);
+  if (avg < 1.05) return '< 1 day';
+  return `${avg.toFixed(1)} days`;
+}
+
+function buildProgressExtraDetails(entries) {
   const details = [];
+  const videoClips = countVideoClipsInLibrary();
+
+  if (!entries.length) {
+    if (videoClips > 0) {
+      details.push({ label: 'Saved video clips', value: String(videoClips) });
+    }
+    return details;
+  }
+
   const sortedKeys = Array.from(new Set(entries.map((e) => e.dateKey))).sort();
-  const firstD = parseDateKey(sortedKeys[0]);
-  if (firstD) {
+  const lastKey = sortedKeys[sortedKeys.length - 1];
+  const lastD = parseDateKey(lastKey);
+  if (lastD) {
     details.push({
-      label: 'Training since',
-      value: firstD.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      label: 'Latest session',
+      value: lastD.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
     });
   }
 
-  const uniqueDays = new Set(entries.map((e) => e.dateKey)).size;
-  details.push({ label: 'Days with a log', value: String(uniqueDays) });
-
-  const titleCounts = {};
-  entries.forEach(({ entry }) => {
-    const t = String(entry?.title || '').trim() || 'Untitled';
-    titleCounts[t] = (titleCounts[t] || 0) + 1;
+  const end14 = new Date();
+  end14.setHours(23, 59, 59, 999);
+  const start14 = new Date(end14);
+  start14.setDate(start14.getDate() - 13);
+  start14.setHours(0, 0, 0, 0);
+  details.push({
+    label: 'Sessions (last 14 days)',
+    value: String(countSessionsInDateRange(entries, start14, end14))
   });
-  let favTitle = '';
-  let favN = 0;
-  Object.keys(titleCounts).forEach((t) => {
-    const n = titleCounts[t];
-    if (n > favN) {
-      favN = n;
-      favTitle = t;
-    }
-  });
-  if (favTitle) {
-    const short = favTitle.length > 32 ? `${favTitle.slice(0, 29)}…` : favTitle;
-    details.push({ label: 'Most logged workout', value: `${favN}× ${short}` });
-  }
 
   const dowCounts = [0, 0, 0, 0, 0, 0, 0];
   entries.forEach(({ dateKey }) => {
@@ -982,90 +1020,33 @@ function buildProgressExtraDetails(entries) {
     if (d) dowCounts[d.getDay()] += 1;
   });
   const dowNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  let bestN = 0;
-  let bestI = 0;
+  let minN = Infinity;
+  let minI = -1;
   for (let i = 0; i < 7; i++) {
-    if (dowCounts[i] > bestN) {
-      bestN = dowCounts[i];
-      bestI = i;
+    if (dowCounts[i] > 0 && dowCounts[i] < minN) {
+      minN = dowCounts[i];
+      minI = i;
     }
   }
-  if (bestN > 0) {
-    details.push({ label: 'Busiest weekday', value: `${dowNames[bestI]} (${bestN})` });
+  if (minI >= 0) {
+    details.push({ label: 'Quietest weekday', value: `${dowNames[minI]} (${minN})` });
   }
 
-  const now = new Date();
-  const thisYM = now.getFullYear() * 12 + now.getMonth();
-  const prevMonthRef = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastYM = prevMonthRef.getFullYear() * 12 + prevMonthRef.getMonth();
-  let thisMonthSessions = 0;
-  let lastMonthSessions = 0;
-  entries.forEach(({ dateKey }) => {
-    const d = parseDateKey(dateKey);
-    if (!d) return;
-    const ym = d.getFullYear() * 12 + d.getMonth();
-    if (ym === thisYM) thisMonthSessions += 1;
-    else if (ym === lastYM) lastMonthSessions += 1;
-  });
-  if (thisMonthSessions > 0 || lastMonthSessions > 0) {
-    let tail = '';
-    if (lastMonthSessions === 0 && thisMonthSessions > 0) {
-      tail = 'first month in range';
-    } else if (lastMonthSessions > 0) {
-      const pct = Math.round(((thisMonthSessions - lastMonthSessions) / lastMonthSessions) * 100);
-      if (pct > 0) tail = `+${pct}% vs prior month`;
-      else if (pct < 0) tail = `${pct}% vs prior month`;
-      else tail = 'even with prior month';
-    }
-    const value =
-      tail === '' ? `${thisMonthSessions} this month` : `${thisMonthSessions} this month · ${tail}`;
-    details.push({ label: 'Month momentum', value });
+  const gapAvg = averageTrainingDayGapDays(sortedKeys);
+  if (gapAvg) {
+    details.push({ label: 'Avg. space between logs', value: gapAvg });
   }
 
-  const dayDates = sortedKeys
-    .map((k) => parseDateKey(k))
-    .filter((d) => d && !Number.isNaN(d.getTime()))
-    .sort((a, b) => a.getTime() - b.getTime());
-  let maxGapDays = 0;
-  for (let i = 1; i < dayDates.length; i++) {
-    const gap = Math.round((dayDates[i].getTime() - dayDates[i - 1].getTime()) / 86400000) - 1;
-    if (gap > maxGapDays) maxGapDays = gap;
-  }
-  if (maxGapDays > 0) {
+  const streak = longestConsecutiveTrainingDayStreak(sortedKeys);
+  if (streak > 0) {
     details.push({
-      label: 'Longest gap between logs',
-      value: `${maxGapDays} day${maxGapDays === 1 ? '' : 's'}`
+      label: 'Longest log streak',
+      value: `${streak} day${streak === 1 ? '' : 's'} in a row`
     });
   }
 
-  const exerciseNames = new Set();
-  entries.forEach(({ entry }) => {
-    if (!entry || !Array.isArray(entry.exercises)) return;
-    entry.exercises.forEach((block) => {
-      if (block.type === 'superset' && Array.isArray(block.exercises)) {
-        block.exercises.forEach((ex) => {
-          const n = String(ex?.name || '').trim();
-          if (n) exerciseNames.add(n);
-        });
-      } else {
-        const n = String(block?.name || '').trim();
-        if (n) exerciseNames.add(n);
-      }
-    });
-  });
-  if (exerciseNames.size > 0) {
-    details.push({ label: 'Different exercises logged', value: String(exerciseNames.size) });
-  }
-
-  const last = dayDates[dayDates.length - 1];
-  if (last) {
-    const daysSince = Math.floor((Date.now() - last.getTime()) / 86400000);
-    if (daysSince >= 0) {
-      details.push({
-        label: 'Days since last log',
-        value: daysSince === 0 ? 'Today' : String(daysSince)
-      });
-    }
+  if (videoClips > 0) {
+    details.push({ label: 'Saved video clips', value: String(videoClips) });
   }
 
   return details;
@@ -1076,13 +1057,13 @@ function appendProgressDetailsSection(root, entries) {
   const section = document.createElement('section');
   section.className = 'progress-details progress-section-card';
   const h4 = document.createElement('h4');
-  h4.textContent = 'At a glance';
+  h4.textContent = 'Quick snapshot';
   section.appendChild(h4);
 
   if (!items.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = 'Complete a workout to see extra progress details here.';
+    empty.textContent = 'Complete a workout (or save a video) to see snapshot stats here.';
     section.appendChild(empty);
     root.appendChild(section);
     return;
@@ -1143,65 +1124,71 @@ function countSessionsInDateRange(entries, rangeStart, rangeEnd) {
   return n;
 }
 
-function buildRollingWeekSessionCounts(entries) {
+function countWeightedVsTotalSets(entries) {
+  let total = 0;
+  let weighted = 0;
+  entries.forEach(({ entry }) => {
+    if (!entry || !Array.isArray(entry.exercises)) return;
+    const visitLogs = (logs) => {
+      (logs || []).forEach((log) => {
+        total += 1;
+        const w = parseWeightToNumber(log?.weight);
+        if (w != null && w > 0) weighted += 1;
+      });
+    };
+    entry.exercises.forEach((block) => {
+      if (block.type === 'superset' && Array.isArray(block.exercises)) {
+        block.exercises.forEach((ex) => visitLogs(ex.setLogs));
+      } else {
+        visitLogs(block.setLogs);
+      }
+    });
+  });
+  return { total, weighted };
+}
+
+function buildFourteenDayPairSessions(entries) {
   const end = new Date();
   end.setHours(23, 59, 59, 999);
-  const lastStart = new Date(end);
-  lastStart.setDate(lastStart.getDate() - 6);
-  lastStart.setHours(0, 0, 0, 0);
-  const last7 = countSessionsInDateRange(entries, lastStart, end);
+  const curStart = new Date(end);
+  curStart.setDate(curStart.getDate() - 13);
+  curStart.setHours(0, 0, 0, 0);
+  const cur = countSessionsInDateRange(entries, curStart, end);
 
-  const prevEnd = new Date(lastStart);
+  const prevEnd = new Date(curStart);
   prevEnd.setDate(prevEnd.getDate() - 1);
   prevEnd.setHours(23, 59, 59, 999);
   const prevStart = new Date(prevEnd);
-  prevStart.setDate(prevStart.getDate() - 6);
+  prevStart.setDate(prevStart.getDate() - 13);
   prevStart.setHours(0, 0, 0, 0);
-  const prev7 = countSessionsInDateRange(entries, prevStart, prevEnd);
-
-  return { last7, prev7 };
+  const prev = countSessionsInDateRange(entries, prevStart, prevEnd);
+  return { cur, prev };
 }
 
-function countWeeksWithSessions(entries) {
-  const activeWeeks = new Set();
-  entries.forEach(({ dateKey }) => {
-    const dateObj = parseDateKey(dateKey);
-    if (!dateObj) return;
-    const weekStart = new Date(dateObj);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    activeWeeks.add(formatDate(weekStart));
-  });
-  return activeWeeks.size;
-}
-
-function buildTopExerciseAppearances(entries, limit = 6) {
-  const countByKey = {};
-  const nameByKey = {};
+function buildTopExerciseBySetVolume(entries, limit = 6) {
+  const vol = {};
+  const names = {};
   entries.forEach(({ entry }) => {
     if (!entry || !Array.isArray(entry.exercises)) return;
-    const keysThisSession = new Set();
     entry.exercises.forEach((block) => {
       if (block.type === 'superset' && Array.isArray(block.exercises)) {
         block.exercises.forEach((ex) => {
           const key = normalizeExerciseKey(ex.name);
           if (!key) return;
-          keysThisSession.add(key);
-          if (!nameByKey[key]) nameByKey[key] = String(ex.name || '').trim() || key;
+          names[key] = String(ex.name || '').trim() || key;
+          vol[key] = (vol[key] || 0) + (ex.setLogs || []).length;
         });
       } else {
         const key = normalizeExerciseKey(block.name);
         if (!key) return;
-        keysThisSession.add(key);
-        if (!nameByKey[key]) nameByKey[key] = String(block.name || '').trim() || key;
+        names[key] = String(block.name || '').trim() || key;
+        vol[key] = (vol[key] || 0) + (block.setLogs || []).length;
       }
     });
-    keysThisSession.forEach((k) => {
-      countByKey[k] = (countByKey[k] || 0) + 1;
-    });
   });
-  return Object.keys(countByKey)
-    .map((k) => ({ name: nameByKey[k], count: countByKey[k] }))
-    .sort((a, b) => b.count - a.count)
+  return Object.keys(vol)
+    .map((k) => ({ name: names[k], sets: vol[k] }))
+    .sort((a, b) => b.sets - a.sets)
     .slice(0, limit);
 }
 
@@ -1224,45 +1211,59 @@ function appendProgressTrainingLoadSection(root, entries) {
   const section = document.createElement('section');
   section.className = 'progress-training-load progress-section-card';
   const h4 = document.createElement('h4');
-  h4.textContent = 'Training load & rhythm';
+  h4.textContent = 'Volume & coverage';
   section.appendChild(h4);
 
   if (!entries.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = 'Finish workouts with logged sets to see load and rolling-week rhythm.';
+    empty.textContent = 'Finish workouts with logged sets to see averages, weight coverage, and 14-day rhythm.';
     section.appendChild(empty);
     root.appendChild(section);
     return;
   }
 
   const { totalSets, totalReps } = accumulateVolumeFromEntries(entries);
-  const { last7, prev7 } = buildRollingWeekSessionCounts(entries);
-  const weeks = countWeeksWithSessions(entries);
-  const uniqueTitles = new Set(
-    entries.map((e) => String(e.entry?.title || '').trim()).filter(Boolean)
-  ).size;
+  const n = entries.length;
+  const avgSets = n ? (totalSets / n).toFixed(1) : '0';
+  const avgReps = n && totalReps > 0 ? (totalReps / n).toFixed(0) : '—';
 
-  const repsLabel = totalReps > 0 ? totalReps.toLocaleString() : '—';
-  let vsTail = '';
-  if (prev7 > 0) {
-    const pct = Math.round(((last7 - prev7) / prev7) * 100);
-    if (pct > 0) vsTail = ` (+${pct}% vs prior week)`;
-    else if (pct < 0) vsTail = ` (${pct}% vs prior week)`;
-    else vsTail = ' (same as prior week)';
-  } else if (last7 > 0) {
-    vsTail = ' (no prior window yet)';
+  const { cur: last14, prev: prev14 } = buildFourteenDayPairSessions(entries);
+  let vs14 = '';
+  if (prev14 > 0) {
+    const pct = Math.round(((last14 - prev14) / prev14) * 100);
+    if (pct > 0) vs14 = ` (+${pct}% vs prior 14d)`;
+    else if (pct < 0) vs14 = ` (${pct}% vs prior 14d)`;
+    else vs14 = ' (same as prior 14d)';
+  } else if (last14 > 0) {
+    vs14 = ' (no prior 14d yet)';
+  }
+
+  const { total: setTotal, weighted: setWeighted } = countWeightedVsTotalSets(entries);
+  let weightLine = '—';
+  if (setTotal > 0) {
+    const pctW = Math.round((setWeighted / setTotal) * 100);
+    weightLine = `${setWeighted} / ${setTotal} sets (${pctW}% with weight)`;
+  }
+
+  const sortedKeys = Array.from(new Set(entries.map((e) => e.dateKey))).sort();
+  const firstD = parseDateKey(sortedKeys[0]);
+  const lastD = parseDateKey(sortedKeys[sortedKeys.length - 1]);
+  let spanLine = '—';
+  if (firstD && lastD) {
+    const spanDays = Math.round((lastD.getTime() - firstD.getTime()) / 86400000) + 1;
+    spanLine = `${spanDays} day${spanDays === 1 ? '' : 's'} (${firstD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} → ${lastD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})`;
   }
 
   const grid = document.createElement('div');
   grid.className = 'progress-details-grid';
   const cells = [
-    { label: 'Total sets logged', value: String(totalSets) },
-    { label: 'Total reps logged', value: repsLabel },
-    { label: 'Last 7 days', value: `${last7} session${last7 === 1 ? '' : 's'}${vsTail}` },
-    { label: 'Prior 7 days', value: `${prev7} session${prev7 === 1 ? '' : 's'}` },
-    { label: 'Weeks with a workout', value: String(weeks) },
-    { label: 'Unique workout names', value: String(uniqueTitles) }
+    { label: 'Avg sets / session', value: avgSets },
+    { label: 'Avg reps / session', value: avgReps },
+    { label: 'Last 14 days', value: `${last14} session${last14 === 1 ? '' : 's'}${vs14}` },
+    { label: 'Prior 14 days', value: `${prev14} session${prev14 === 1 ? '' : 's'}` },
+    { label: 'Sets with weight', value: weightLine },
+    { label: 'Log span', value: spanLine }
   ];
   cells.forEach(({ label, value }) => {
     const card = document.createElement('div');
@@ -1282,14 +1283,14 @@ function appendProgressTopExercisesSection(root, entries) {
   const section = document.createElement('section');
   section.className = 'progress-top-exercises progress-section-card';
   const h4 = document.createElement('h4');
-  h4.textContent = 'Most-trained lifts';
+  h4.textContent = 'Set-volume leaders';
   section.appendChild(h4);
 
-  const top = buildTopExerciseAppearances(entries, 6);
+  const top = buildTopExerciseBySetVolume(entries, 6);
   if (!top.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
-    empty.textContent = 'Log workouts with exercise names to rank your most-trained movements.';
+    empty.textContent = 'Log named exercises with sets to rank total set volume.';
     section.appendChild(empty);
     root.appendChild(section);
     return;
@@ -1297,7 +1298,7 @@ function appendProgressTopExercisesSection(root, entries) {
 
   const hint = document.createElement('p');
   hint.className = 'muted progress-top-exercises-hint';
-  hint.textContent = 'Counted once per workout when the exercise appears (including supersets).';
+  hint.textContent = 'Every completed set row counts toward that exercise (supersets included).';
   section.appendChild(hint);
 
   const list = document.createElement('ol');
@@ -1313,7 +1314,7 @@ function appendProgressTopExercisesSection(root, entries) {
     name.textContent = row.name;
     const count = document.createElement('span');
     count.className = 'progress-top-exercises-count';
-    count.textContent = `${row.count} workout${row.count === 1 ? '' : 's'}`;
+    count.textContent = `${row.sets} set${row.sets === 1 ? '' : 's'}`;
     li.append(rank, name, count);
     list.appendChild(li);
   });
@@ -1321,24 +1322,48 @@ function appendProgressTopExercisesSection(root, entries) {
   root.appendChild(section);
 }
 
-function appendProgressRecordBookSection(root) {
+function appendProgressRecordBookSection(root, entries) {
   const section = document.createElement('section');
   section.className = 'progress-record-book progress-section-card';
   const h4 = document.createElement('h4');
-  h4.textContent = 'Record book';
+  h4.textContent = 'Highlights';
   section.appendChild(h4);
 
+  const milestoneCount = buildProgressMilestones(entries).length;
   const { exerciseSlots, workoutTemplates } = summarizePersonalBestsStore();
-  const p = document.createElement('p');
-  p.className = 'progress-record-book-summary';
-  if (exerciseSlots === 0) {
-    p.classList.add('muted');
-    p.textContent =
-      'Personal bests build as you complete workouts with weight logged. They stay grouped by workout template.';
-  } else {
-    p.textContent = `You are tracking ${exerciseSlots} exercise best${exerciseSlots === 1 ? '' : 's'} across ${workoutTemplates} workout template${workoutTemplates === 1 ? '' : 's'}. See the Progress area for weight trends and milestones.`;
-  }
-  section.appendChild(p);
+  const clips = countVideoClipsInLibrary();
+
+  const grid = document.createElement('div');
+  grid.className = 'progress-details-grid';
+  const cells = [
+    {
+      label: 'Weight PR moments',
+      value: entries.length && milestoneCount > 0 ? String(milestoneCount) : '—'
+    },
+    { label: 'PB slots tracked', value: exerciseSlots > 0 ? String(exerciseSlots) : '—' },
+    {
+      label: 'Workout templates w/ PBs',
+      value: workoutTemplates > 0 ? String(workoutTemplates) : '—'
+    },
+    { label: 'Video clips saved', value: clips > 0 ? String(clips) : '—' }
+  ];
+  cells.forEach(({ label, value }) => {
+    const card = document.createElement('div');
+    card.className = 'progress-detail-card';
+    const lab = document.createElement('span');
+    lab.textContent = label;
+    const val = document.createElement('strong');
+    val.textContent = value;
+    card.append(lab, val);
+    grid.appendChild(card);
+  });
+  section.appendChild(grid);
+
+  const foot = document.createElement('p');
+  foot.className = 'muted progress-record-book-summary';
+  foot.textContent =
+    'PR moments come from logged weight bests over time. PB slots are the exercises you are tracking for best weight in each saved workout template.';
+  section.appendChild(foot);
   root.appendChild(section);
 }
 
@@ -1520,7 +1545,7 @@ function renderPersonalBestsTab() {
 
   appendProgressTrainingLoadSection(root, entries);
   appendProgressTopExercisesSection(root, entries);
-  appendProgressRecordBookSection(root);
+  appendProgressRecordBookSection(root, entries);
 
   const milestonesSection = document.createElement('section');
   milestonesSection.className = 'progress-milestones progress-section-card';
