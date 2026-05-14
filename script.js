@@ -53,13 +53,36 @@ function storeVideoClipBlob(blobKey, blob) {
   );
 }
 
+function idbReadResultToBlob(raw) {
+  if (!raw) return null;
+  if (raw instanceof Blob) {
+    return ensurePlayableVideoBlob(raw);
+  }
+  if (raw instanceof ArrayBuffer) {
+    return ensurePlayableVideoBlob(new Blob([raw], { type: 'video/webm' }));
+  }
+  if (ArrayBuffer.isView(raw)) {
+    return ensurePlayableVideoBlob(new Blob([raw], { type: 'video/webm' }));
+  }
+  return null;
+}
+
+function ensurePlayableVideoBlob(blob) {
+  if (!(blob instanceof Blob) || blob.size === 0) return null;
+  const t = (blob.type || '').toLowerCase();
+  if (t.includes('webm') || t.includes('mp4') || t.includes('quicktime') || t.includes('ogg')) {
+    return blob;
+  }
+  return new Blob([blob], { type: 'video/webm' });
+}
+
 function getVideoClipBlob(blobKey) {
   return openVideoClipDb().then(
     (db) =>
       new Promise((resolve, reject) => {
         const tx = db.transaction(VIDEO_CLIP_STORE, 'readonly');
         const r = tx.objectStore(VIDEO_CLIP_STORE).get(blobKey);
-        r.onsuccess = () => resolve(r.result instanceof Blob ? r.result : null);
+        r.onsuccess = () => resolve(idbReadResultToBlob(r.result));
         r.onerror = () => reject(r.error || new Error('IndexedDB read failed'));
       })
   );
@@ -94,6 +117,10 @@ function sanitizeVideoLibraryOnLoad(raw) {
       }
       const u = v.url;
       if (typeof u === 'string' && u.startsWith('data:')) {
+        kept.push(v);
+        return;
+      }
+      if (typeof u === 'string' && u.startsWith('blob:')) {
         kept.push(v);
         return;
       }
@@ -151,7 +178,72 @@ async function resolveVideoItemPlaybackUrl(item) {
   if (typeof u === 'string' && u.startsWith('data:')) {
     return u;
   }
+  if (typeof u === 'string' && u.startsWith('blob:')) {
+    try {
+      const resp = await fetch(u);
+      if (!resp.ok) return null;
+      const blob = ensurePlayableVideoBlob(await resp.blob());
+      if (!blob || blob.size === 0) return null;
+      const url = URL.createObjectURL(blob);
+      videoPlaybackObjectUrls.push(url);
+      return url;
+    } catch (_) {
+      return null;
+    }
+  }
   return null;
+}
+
+async function migrateLegacyBlobUrlClipsToIndexedDb() {
+  if (!state.activeUser) return false;
+  let changed = false;
+  const groups = state.videoLibrary || {};
+  for (const group of Object.values(groups)) {
+    if (!group || !Array.isArray(group.videos)) continue;
+    const toRemove = [];
+    for (const clip of group.videos) {
+      if (!clip || typeof clip !== 'object') continue;
+      if (clip.blobKey) continue;
+      const u = clip.url;
+      if (typeof u !== 'string' || !u.startsWith('blob:')) continue;
+      try {
+        const resp = await fetch(u);
+        if (!resp.ok) {
+          toRemove.push(clip);
+          changed = true;
+          continue;
+        }
+        const blob = ensurePlayableVideoBlob(await resp.blob());
+        if (!blob || blob.size === 0) {
+          toRemove.push(clip);
+          changed = true;
+          continue;
+        }
+        const blobKey = `${safeUserSegmentForBlobKey(state.activeUser)}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+        await storeVideoClipBlob(blobKey, blob);
+        delete clip.url;
+        clip.blobKey = blobKey;
+        changed = true;
+      } catch (_) {
+        toRemove.push(clip);
+        changed = true;
+      }
+    }
+    if (toRemove.length) {
+      group.videos = group.videos.filter((c) => !toRemove.includes(c));
+    }
+  }
+  Object.keys(groups).forEach((k) => {
+    const g = groups[k];
+    if (g && Array.isArray(g.videos) && g.videos.length === 0) {
+      delete groups[k];
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveState();
+  }
+  return changed;
 }
 
 function applyDataToState(data) {
@@ -171,6 +263,9 @@ function applyDataToState(data) {
   const wg = d.weeklyWorkoutGoal;
   state.weeklyWorkoutGoal =
     wg != null && Number.isFinite(Number(wg)) && Number(wg) >= 1 ? Math.min(14, Math.round(Number(wg))) : null;
+  queueMicrotask(() => {
+    void migrateLegacyBlobUrlClipsToIndexedDb();
+  });
 }
 
 function buildEmptyUserData() {
@@ -833,6 +928,7 @@ function switchTab(target) {
 
 async function renderVideosTab() {
   if (!videosRoot) return;
+  await migrateLegacyBlobUrlClipsToIndexedDb();
   videosRoot.innerHTML = '';
   revokeAllVideoPlaybackObjectUrls();
   const allVideos = [];
@@ -886,8 +982,22 @@ async function renderVideosTab() {
         const video = document.createElement('video');
         video.className = 'hidden';
         video.controls = true;
+        video.playsInline = true;
         video.setAttribute('playsinline', '');
         video.setAttribute('preload', 'metadata');
+        video.addEventListener(
+          'error',
+          () => {
+            if (!video.muted && video.src) {
+              video.muted = true;
+              const s = video.src;
+              video.removeAttribute('src');
+              video.load();
+              video.src = s;
+            }
+          },
+          { once: true }
+        );
 
         hydrationPromises.push(
           resolveVideoItemPlaybackUrl(item).then((src) => {
@@ -1566,6 +1676,24 @@ async function switchCaptureCamera() {
   }
 }
 
+function pickSupportedRecorderMimeType() {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return '';
+  }
+  const candidates = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+    'video/mp4'
+  ];
+  for (let i = 0; i < candidates.length; i++) {
+    if (MediaRecorder.isTypeSupported(candidates[i])) {
+      return candidates[i];
+    }
+  }
+  return '';
+}
+
 function toggleVideoRecording() {
   if (!activeVideoStream) return;
   if (activeMediaRecorder && activeMediaRecorder.state === 'recording') {
@@ -1573,8 +1701,11 @@ function toggleVideoRecording() {
     return;
   }
   activeVideoChunks = [];
+  const recorderMime = pickSupportedRecorderMimeType();
   try {
-    activeMediaRecorder = new MediaRecorder(activeVideoStream);
+    activeMediaRecorder = recorderMime
+      ? new MediaRecorder(activeVideoStream, { mimeType: recorderMime })
+      : new MediaRecorder(activeVideoStream);
   } catch (error) {
     alert('Recording is not available.');
     return;
@@ -1588,7 +1719,8 @@ function toggleVideoRecording() {
     if (recordVideoButton) {
       recordVideoButton.classList.remove('recording');
     }
-    const blob = new Blob(activeVideoChunks, { type: 'video/webm' });
+    const mimeType = (activeMediaRecorder && activeMediaRecorder.mimeType) || recorderMime || 'video/webm';
+    const blob = new Blob(activeVideoChunks, { type: mimeType || 'video/webm' });
     if (blob.size > 0 && activeVideoContext) {
       void addVideoToLibrary(activeVideoContext, blob)
         .then(() => switchTab('videos'))
