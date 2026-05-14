@@ -1,5 +1,158 @@
 const USER_STORE_KEY = 'workoutUsers';
 const ACTIVE_USER_KEY = 'workoutActiveUser';
+const VIDEO_CLIP_DB_NAME = 'workoutTrackerVideoClips';
+const VIDEO_CLIP_STORE = 'blobs';
+
+let videoClipDbPromise = null;
+const videoPlaybackObjectUrls = [];
+
+function safeUserSegmentForBlobKey(username) {
+  return String(username || 'user')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .slice(0, 48);
+}
+
+function revokeAllVideoPlaybackObjectUrls() {
+  while (videoPlaybackObjectUrls.length) {
+    const u = videoPlaybackObjectUrls.pop();
+    try {
+      URL.revokeObjectURL(u);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+}
+
+function openVideoClipDb() {
+  if (videoClipDbPromise) return videoClipDbPromise;
+  videoClipDbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(VIDEO_CLIP_DB_NAME, 1);
+    req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(VIDEO_CLIP_STORE)) {
+        db.createObjectStore(VIDEO_CLIP_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+  });
+  return videoClipDbPromise;
+}
+
+function storeVideoClipBlob(blobKey, blob) {
+  return openVideoClipDb().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(VIDEO_CLIP_STORE, 'readwrite');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('IndexedDB write failed'));
+        tx.onabort = () => reject(tx.error || new Error('IndexedDB write aborted'));
+        tx.objectStore(VIDEO_CLIP_STORE).put(blob, blobKey);
+      })
+  );
+}
+
+function getVideoClipBlob(blobKey) {
+  return openVideoClipDb().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(VIDEO_CLIP_STORE, 'readonly');
+        const r = tx.objectStore(VIDEO_CLIP_STORE).get(blobKey);
+        r.onsuccess = () => resolve(r.result instanceof Blob ? r.result : null);
+        r.onerror = () => reject(r.error || new Error('IndexedDB read failed'));
+      })
+  );
+}
+
+function deleteVideoClipBlob(blobKey) {
+  if (!blobKey) return Promise.resolve();
+  return openVideoClipDb().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(VIDEO_CLIP_STORE, 'readwrite');
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('IndexedDB delete failed'));
+        tx.objectStore(VIDEO_CLIP_STORE).delete(blobKey);
+      })
+  );
+}
+
+function sanitizeVideoLibraryOnLoad(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const out = {};
+  Object.entries(raw).forEach(([gKey, group]) => {
+    if (!group || typeof group !== 'object') return;
+    const exerciseName = String(group.exerciseName || gKey || 'Exercise').trim() || 'Exercise';
+    const kept = [];
+    (group.videos || []).forEach((v) => {
+      if (!v || typeof v !== 'object') return;
+      if (typeof v.blobKey === 'string' && v.blobKey.trim()) {
+        const { url: _u, ...rest } = v;
+        kept.push(rest);
+        return;
+      }
+      const u = v.url;
+      if (typeof u === 'string' && u.startsWith('data:')) {
+        kept.push(v);
+        return;
+      }
+    });
+    if (kept.length) {
+      out[gKey] = { exerciseName, videos: kept };
+    }
+  });
+  return out;
+}
+
+function stripVideoLibraryForPersistence(library) {
+  if (!library || typeof library !== 'object') return {};
+  const out = {};
+  Object.entries(library).forEach(([gKey, group]) => {
+    if (!group || typeof group !== 'object' || !Array.isArray(group.videos)) return;
+    out[gKey] = {
+      exerciseName: group.exerciseName,
+      videos: group.videos.map((v) => {
+        if (!v || typeof v !== 'object') return v;
+        const base = {
+          blobKey: v.blobKey,
+          dateLabel: v.dateLabel,
+          dayKey: v.dayKey,
+          workoutTitle: v.workoutTitle,
+          sessionId: v.sessionId,
+          exerciseName: v.exerciseName,
+          setIndex: v.setIndex,
+          timestamp: v.timestamp
+        };
+        if (typeof v.url === 'string' && v.url.startsWith('data:')) {
+          return { ...base, url: v.url };
+        }
+        return base;
+      })
+    };
+  });
+  return out;
+}
+
+async function resolveVideoItemPlaybackUrl(item) {
+  if (!item || typeof item !== 'object') return null;
+  if (typeof item.blobKey === 'string' && item.blobKey.trim()) {
+    try {
+      const blob = await getVideoClipBlob(item.blobKey.trim());
+      if (!blob || blob.size === 0) return null;
+      const url = URL.createObjectURL(blob);
+      videoPlaybackObjectUrls.push(url);
+      return url;
+    } catch (_) {
+      return null;
+    }
+  }
+  const u = item.url;
+  if (typeof u === 'string' && u.startsWith('data:')) {
+    return u;
+  }
+  return null;
+}
 
 function applyDataToState(data) {
   const d = data && typeof data === 'object' ? data : buildEmptyUserData();
@@ -9,7 +162,7 @@ function applyDataToState(data) {
   state.completedWorkoutDays =
     d.completedWorkoutDays && typeof d.completedWorkoutDays === 'object' ? d.completedWorkoutDays : {};
   state.personalBests = d.personalBests && typeof d.personalBests === 'object' ? d.personalBests : {};
-  state.videoLibrary = d.videoLibrary && typeof d.videoLibrary === 'object' ? d.videoLibrary : {};
+  state.videoLibrary = sanitizeVideoLibraryOnLoad(d.videoLibrary && typeof d.videoLibrary === 'object' ? d.videoLibrary : {});
   state.activeSession = d.activeSession && typeof d.activeSession === 'object' ? d.activeSession : null;
   state.selectedDay = typeof d.selectedDay === 'string' ? d.selectedDay : null;
   const parsedCurrentDate = d.currentDateIso ? new Date(d.currentDateIso) : null;
@@ -178,7 +331,7 @@ function saveState() {
     calendarEntries: state.calendarEntries,
     completedWorkoutDays: state.completedWorkoutDays,
     personalBests: state.personalBests,
-    videoLibrary: state.videoLibrary,
+    videoLibrary: stripVideoLibraryForPersistence(state.videoLibrary),
     activeSession: state.activeSession,
     selectedDay: state.selectedDay,
     currentDateIso: state.currentDate instanceof Date ? state.currentDate.toISOString() : null,
@@ -674,13 +827,14 @@ function switchTab(target) {
     renderPersonalBestsTab();
   }
   if (target === 'videos') {
-    renderVideosTab();
+    void renderVideosTab();
   }
 }
 
-function renderVideosTab() {
+async function renderVideosTab() {
   if (!videosRoot) return;
   videosRoot.innerHTML = '';
+  revokeAllVideoPlaybackObjectUrls();
   const allVideos = [];
   Object.values(state.videoLibrary || {}).forEach((group) => {
     (group.videos || []).forEach((video) => {
@@ -699,6 +853,8 @@ function renderVideosTab() {
     if (!byDate[key]) byDate[key] = [];
     byDate[key].push(item);
   });
+
+  const hydrationPromises = [];
 
   Object.keys(byDate)
     .sort((a, b) => b.localeCompare(a))
@@ -730,7 +886,22 @@ function renderVideosTab() {
         const video = document.createElement('video');
         video.className = 'hidden';
         video.controls = true;
-        video.src = item.url;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('preload', 'metadata');
+
+        hydrationPromises.push(
+          resolveVideoItemPlaybackUrl(item).then((src) => {
+            if (src) {
+              video.src = src;
+            } else {
+              const err = document.createElement('p');
+              err.className = 'muted';
+              err.textContent =
+                'This clip cannot be played. It may have been saved in an old format, or browser storage was cleared.';
+              vCard.appendChild(err);
+            }
+          })
+        );
 
         toggleButton.addEventListener('click', () => {
           const isHidden = video.classList.contains('hidden');
@@ -747,6 +918,8 @@ function renderVideosTab() {
       dayDetails.append(summary, body);
       videosRoot.appendChild(dayDetails);
     });
+
+  await Promise.all(hydrationPromises);
 }
 
 function collectWorkoutExerciseNames(workout) {
@@ -1278,7 +1451,7 @@ function closeVideoCaptureModal() {
   }
 }
 
-function addVideoToLibrary(context, blob) {
+async function addVideoToLibrary(context, blob) {
   const exerciseName = context?.exerciseName || 'Exercise';
   const key = normalizeExerciseKey(exerciseName) || 'exercise';
   if (!state.videoLibrary[key]) {
@@ -1287,7 +1460,17 @@ function addVideoToLibrary(context, blob) {
       videos: []
     };
   }
-  const url = URL.createObjectURL(blob);
+  if (!state.activeUser) {
+    return;
+  }
+  const blobKey = `${safeUserSegmentForBlobKey(state.activeUser)}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  try {
+    await storeVideoClipBlob(blobKey, blob);
+  } catch (err) {
+    console.error(err);
+    alert('Could not save the video to browser storage. Check that this site can use storage, then try again.');
+    return;
+  }
   const dayKey = state.activeSession?.dayKey || '';
   const localDate = dayKey ? parseDateKey(dayKey) : new Date();
   const dateLabel = localDate
@@ -1296,7 +1479,7 @@ function addVideoToLibrary(context, blob) {
   const workoutTitle = String(state.activeSession?.title || '').trim();
   const sessionId = String(state.activeSession?.sessionId || '');
   state.videoLibrary[key].videos.push({
-    url,
+    blobKey,
     dateLabel,
     dayKey,
     workoutTitle,
@@ -1305,7 +1488,8 @@ function addVideoToLibrary(context, blob) {
     setIndex: Number.isFinite(context?.si) ? context.si : 0,
     timestamp: Date.now()
   });
-  renderVideosTab();
+  saveState();
+  await renderVideosTab();
 }
 
 function purgeVideosWhere(predicate) {
@@ -1315,7 +1499,16 @@ function purgeVideosWhere(predicate) {
     const kept = [];
     group.videos.forEach((video) => {
       if (predicate(video)) {
-        if (video?.url) URL.revokeObjectURL(video.url);
+        if (typeof video?.blobKey === 'string' && video.blobKey.trim()) {
+          void deleteVideoClipBlob(video.blobKey.trim());
+        }
+        if (video?.url && String(video.url).startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(video.url);
+          } catch (_) {
+            /* ignore */
+          }
+        }
       } else {
         kept.push(video);
       }
@@ -1397,8 +1590,9 @@ function toggleVideoRecording() {
     }
     const blob = new Blob(activeVideoChunks, { type: 'video/webm' });
     if (blob.size > 0 && activeVideoContext) {
-      addVideoToLibrary(activeVideoContext, blob);
-      switchTab('videos');
+      void addVideoToLibrary(activeVideoContext, blob)
+        .then(() => switchTab('videos'))
+        .catch(() => {});
     }
     closeVideoCaptureModal();
   };
@@ -1913,7 +2107,7 @@ function removeWorkoutFromDay(index) {
     updateDashboard();
     renderCompletedWorkoutsTab();
     renderPersonalBestsTab();
-    renderVideosTab();
+    void renderVideosTab();
   }
 }
 
@@ -2293,11 +2487,7 @@ function login() {
 }
 
 function performLogoutCleanup() {
-  Object.values(state.videoLibrary || {}).forEach((group) => {
-    (group.videos || []).forEach((v) => {
-      if (v?.url) URL.revokeObjectURL(v.url);
-    });
-  });
+  revokeAllVideoPlaybackObjectUrls();
   state.activeUser = null;
   state.activeSession = null;
   state.workouts = [];
@@ -2327,7 +2517,7 @@ function renderAllForActiveUser() {
   updateDashboard();
   renderCompletedWorkoutsTab();
   renderPersonalBestsTab();
-  renderVideosTab();
+  void renderVideosTab();
 }
 
 prevMonthButton.addEventListener('click', () => {
@@ -2432,7 +2622,7 @@ function init() {
   renderActiveWorkoutPanel();
   renderCompletedWorkoutsTab();
   renderPersonalBestsTab();
-  renderVideosTab();
+  void renderVideosTab();
 }
 
 init();
