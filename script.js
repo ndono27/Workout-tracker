@@ -253,6 +253,7 @@ function applyDataToState(data) {
     d.calendarEntries && typeof d.calendarEntries === 'object' ? d.calendarEntries : {};
   state.completedWorkoutDays =
     d.completedWorkoutDays && typeof d.completedWorkoutDays === 'object' ? d.completedWorkoutDays : {};
+  state.restDays = d.restDays && typeof d.restDays === 'object' ? d.restDays : {};
   state.personalBests = d.personalBests && typeof d.personalBests === 'object' ? d.personalBests : {};
   state.videoLibrary = sanitizeVideoLibraryOnLoad(d.videoLibrary && typeof d.videoLibrary === 'object' ? d.videoLibrary : {});
   state.activeSession = d.activeSession && typeof d.activeSession === 'object' ? d.activeSession : null;
@@ -274,6 +275,7 @@ function buildEmptyUserData() {
     workouts: [],
     calendarEntries: {},
     completedWorkoutDays: {},
+    restDays: {},
     personalBests: {},
     videoLibrary: {},
     activeSession: null,
@@ -295,6 +297,7 @@ function normalizeUserRecord(rawUser) {
       calendarEntries: data.calendarEntries && typeof data.calendarEntries === 'object' ? data.calendarEntries : {},
       completedWorkoutDays:
         data.completedWorkoutDays && typeof data.completedWorkoutDays === 'object' ? data.completedWorkoutDays : {},
+      restDays: data.restDays && typeof data.restDays === 'object' ? data.restDays : {},
       personalBests: data.personalBests && typeof data.personalBests === 'object' ? data.personalBests : {},
       videoLibrary: data.videoLibrary && typeof data.videoLibrary === 'object' ? data.videoLibrary : {},
       activeSession: data.activeSession && typeof data.activeSession === 'object' ? data.activeSession : null,
@@ -330,6 +333,7 @@ const state = {
   workouts: [],
   calendarEntries: {},
   completedWorkoutDays: {},
+  restDays: {},
   personalBests: {},
   videoLibrary: {},
   activeSession: null,
@@ -343,6 +347,7 @@ const selectedDateText = document.getElementById('selected-date-text');
 const dayWorkouts = document.getElementById('day-workouts');
 const dayWorkoutSelect = document.getElementById('day-workout-select');
 const assignDayWorkoutButton = document.getElementById('assign-day-workout-button');
+const restDaySwitch = document.getElementById('rest-day-switch');
 const workoutNameInput = document.getElementById('workout-name');
 const addExerciseButton = document.getElementById('add-exercise-button');
 const addSupersetButton = document.getElementById('add-superset-button');
@@ -425,6 +430,7 @@ function saveState() {
     workouts: state.workouts,
     calendarEntries: state.calendarEntries,
     completedWorkoutDays: state.completedWorkoutDays,
+    restDays: state.restDays,
     personalBests: state.personalBests,
     videoLibrary: stripVideoLibraryForPersistence(state.videoLibrary),
     activeSession: state.activeSession,
@@ -2162,11 +2168,20 @@ function renderCalendar() {
     const cell = document.createElement('button');
     cell.type = 'button';
     cell.className = 'day-cell';
-    cell.innerHTML = `<span class="day-cell-num">${day}</span>`;
+    const isRestDay = Boolean(state.restDays[cellKey]);
+    const isCompleted = Boolean(state.completedWorkoutDays[cellKey]);
+    const restLabel = isRestDay && !isCompleted ? '<span class="day-cell-label">Rest</span>' : '';
+    cell.innerHTML = `<span class="day-cell-num">${day}</span>${restLabel}`;
 
-    if (state.completedWorkoutDays[cellKey]) {
+    if (isRestDay && !isCompleted) {
+      cell.classList.add('rest-day');
+    }
+
+    if (isCompleted) {
       cell.classList.add('completed');
       cell.setAttribute('aria-label', `Workout completed — ${day}`);
+    } else if (isRestDay) {
+      cell.setAttribute('aria-label', `Rest day — ${day}`);
     }
 
     if (state.selectedDay === cellKey) {
@@ -2186,14 +2201,45 @@ function selectDay(dateKey) {
     : dateKey;
   selectedDateText.textContent = readable;
   renderDayWorkouts();
+  syncRestDaySwitch();
   renderCalendar();
   updateDashboard();
+}
+
+function syncRestDaySwitch() {
+  if (!restDaySwitch) {
+    return;
+  }
+  const hasDay = Boolean(state.selectedDay);
+  const isRest = hasDay && Boolean(state.restDays[state.selectedDay]);
+  restDaySwitch.checked = isRest;
+  restDaySwitch.disabled = !hasDay;
+}
+
+function setRestDayForSelectedDay(isRest) {
+  if (!requireAuth()) {
+    syncRestDaySwitch();
+    return;
+  }
+  if (!state.selectedDay) {
+    syncRestDaySwitch();
+    return;
+  }
+  if (isRest) {
+    state.restDays[state.selectedDay] = true;
+  } else {
+    delete state.restDays[state.selectedDay];
+  }
+  saveState();
+  syncRestDaySwitch();
+  renderCalendar();
 }
 
 function renderDayWorkouts() {
   const workouts = state.calendarEntries[state.selectedDay] || [];
   dayWorkouts.innerHTML = '';
   renderDayWorkoutOptions();
+  syncRestDaySwitch();
   if (!state.selectedDay) {
     return;
   }
@@ -2625,6 +2671,7 @@ function performLogoutCleanup() {
   state.workouts = [];
   state.calendarEntries = {};
   state.completedWorkoutDays = {};
+  state.restDays = {};
   state.personalBests = {};
   state.videoLibrary = {};
   state.selectedDay = null;
@@ -2663,6 +2710,9 @@ nextMonthButton.addEventListener('click', () => {
 });
 
 assignDayWorkoutButton.addEventListener('click', assignWorkoutFromDropdown);
+restDaySwitch?.addEventListener('change', () => {
+  setRestDayForSelectedDay(restDaySwitch.checked);
+});
 addExerciseButton.addEventListener('click', () => addExerciseRow());
 addSupersetButton.addEventListener('click', () => exerciseList.appendChild(createSupersetBlock()));
 saveWorkoutButton.addEventListener('click', addWorkoutTemplate);
